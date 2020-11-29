@@ -16,6 +16,9 @@ There are two documents which describe various levels of the networking layer of
   includes serialisation formats, necessary details of multiplexer and
   technical specifications of mini-protocols used by either _node-to-node_ and
   _node-to-client_ flavors of the protocol.
+  
+## Wireshark Plug-in
+  - [Wireshark Dissector for Ouroboros-Network in Lua](https://github.com/input-output-hk/ouroboros-network/tree/master/ouroboros-network/wireshark-plugin)
 
 ## Reference implementations
   - [Haskell Cardano Node Ouroboros Network Framework](https://github.com/input-output-hk/ouroboros-network/tree/master/ouroboros-network-framework)
