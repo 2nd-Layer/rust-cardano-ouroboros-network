@@ -1,6 +1,11 @@
 # Cardano Rust Ouroboros Network
 This crate implements the networking layer for the Ouroboros blockchain protocol.
 
+# Contributing
+
+## Submit Pull Requests
+This repository implements a [GitHub Action](https://github.com/aslafy-z/conventional-pr-title-action) to make sure that the PR name follows [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). Make sure your PRs follow the referred specification to pass Continuous Integration testing. 
+
 # Ouroboros Network Protocol Documenation
 There are two documents which describe various levels of the networking layer of the Cardano Node Shelley implementation:
 
