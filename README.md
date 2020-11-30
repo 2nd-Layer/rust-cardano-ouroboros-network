@@ -20,6 +20,15 @@ There are two documents which describe various levels of the networking layer of
 ## Wireshark Plug-in
   - [Wireshark Dissector for Ouroboros-Network in Lua](https://github.com/input-output-hk/ouroboros-network/tree/master/ouroboros-network/wireshark-plugin)
 
+## Emurgo CDDL CodeGen
+  - [Emurgo/cddl-codegen](https://github.com/Emurgo/cddl-codegen)
+
+  Codegen serialization logic for CBOR automatically from a CDDL specification.
+
+  Instead of hand-writing CBOR code and writing tests to make sure it matches your CDDL spec, it's much faster to just generate the code from the spec! It will save time and make it easier to keep all your code in sync with any changes to your specification.
+
+  You can learn more about [CDDL here](https://github.com/cbor-wg/cddl).
+
 ## Reference implementations
   - [Haskell Cardano Node Ouroboros Network Framework](https://github.com/input-output-hk/ouroboros-network/tree/master/ouroboros-network-framework)
   - [Haskell Cardano Node Ouroboros Network](https://github.com/input-output-hk/ouroboros-network/tree/master/ouroboros-network)
