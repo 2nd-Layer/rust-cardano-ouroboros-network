@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-
+    name: Build Rust with Cargo
     runs-on: ubuntu-latest
 
     steps:
