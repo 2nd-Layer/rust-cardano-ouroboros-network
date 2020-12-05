@@ -12,9 +12,9 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 pub mod protocols;
 pub mod mux;
 
-use protocols::chainsync_protocol::ChainSyncProtocol;
-use protocols::handshake_protocol::HandshakeProtocol;
-use protocols::transaction_protocol::TxSubmissionProtocol;
+use protocols::chainsync::ChainSyncProtocol;
+use protocols::handshake::HandshakeProtocol;
+use protocols::transaction::TxSubmissionProtocol;
 
 // Who has the ball?
 //

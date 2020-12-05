@@ -23,8 +23,8 @@ use serde::Serialize;
 use serde_cbor::{de, ser, Value};
 
 use crate::{Agency, Protocol};
-use super::chainsync_protocol::msg_roll_backward::parse_msg_roll_backward;
-use super::chainsync_protocol::msg_roll_forward::{MsgRollForward, parse_msg_roll_forward, Tip};
+use super::chainsync::msg_roll_backward::parse_msg_roll_backward;
+use super::chainsync::msg_roll_forward::{MsgRollForward, parse_msg_roll_forward, Tip};
 
 mod msg_roll_forward;
 mod msg_roll_backward;
