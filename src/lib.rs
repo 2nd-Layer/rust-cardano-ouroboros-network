@@ -10,6 +10,7 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 */
 
 pub mod protocols;
+pub mod mux;
 
 use protocols::chainsync_protocol::ChainSyncProtocol;
 use protocols::handshake_protocol::HandshakeProtocol;

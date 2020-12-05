@@ -21,9 +21,9 @@ use log::{debug, error, info, warn};
 use net2::TcpStreamExt;
 
 use crate::{Agency, MiniProtocol, Protocol};
-use super::chainsync_protocol::{ChainSyncProtocol, Mode};
-use super::handshake_protocol::HandshakeProtocol;
-use super::transaction_protocol::TxSubmissionProtocol;
+use crate::protocols::chainsync_protocol::{ChainSyncProtocol, Mode};
+use crate::protocols::handshake_protocol::HandshakeProtocol;
+use crate::protocols::transaction_protocol::TxSubmissionProtocol;
 
 #[derive(PartialEq)]
 pub enum Cmd {
