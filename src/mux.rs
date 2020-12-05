@@ -20,10 +20,10 @@ use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use log::{debug, error, info, warn};
 use net2::TcpStreamExt;
 
-use super::{Agency, MiniProtocol, Protocol};
-use super::chainsync_protocol::{ChainSyncProtocol, Mode};
-use super::handshake_protocol::HandshakeProtocol;
-use super::transaction_protocol::TxSubmissionProtocol;
+use crate::{Agency, MiniProtocol, Protocol};
+use crate::protocols::chainsync::{ChainSyncProtocol, Mode};
+use crate::protocols::handshake::HandshakeProtocol;
+use crate::protocols::transaction::TxSubmissionProtocol;
 
 #[derive(PartialEq)]
 pub enum Cmd {
