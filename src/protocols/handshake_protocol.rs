@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use log::debug;
 use serde_cbor::{de, ser, Value};
 
-use super::{Agency, Protocol};
+use crate::{Agency, Protocol};
 
 #[derive(Debug)]
 pub enum State {

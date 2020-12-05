@@ -20,7 +20,7 @@ use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use log::{debug, error, info, warn};
 use net2::TcpStreamExt;
 
-use super::{Agency, MiniProtocol, Protocol};
+use crate::{Agency, MiniProtocol, Protocol};
 use super::chainsync_protocol::{ChainSyncProtocol, Mode};
 use super::handshake_protocol::HandshakeProtocol;
 use super::transaction_protocol::TxSubmissionProtocol;

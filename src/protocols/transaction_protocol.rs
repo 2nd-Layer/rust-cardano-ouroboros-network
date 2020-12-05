@@ -13,7 +13,7 @@ use byteorder::WriteBytesExt;
 use log::{debug, error, warn};
 use serde_cbor::{de, Value};
 
-use super::{Agency, Protocol};
+use crate::{Agency, Protocol};
 
 #[derive(Debug)]
 pub enum State {
