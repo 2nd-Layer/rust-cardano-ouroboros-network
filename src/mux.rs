@@ -35,7 +35,7 @@ pub enum Cmd {
 // Sync a cardano-node database
 //
 // Connect to cardano-node and run protocols depending on command type
-pub fn start(cmd: Cmd, db: &std::path::PathBuf, host: &String, port: u16, network_magic: u32, pooltool_api_key: &String, cardano_node_path: &std::path::PathBuf, pool_name: &String, pool_id: &String) {
+pub fn start<W: Write>(out: &mut W, cmd: Cmd, db: &std::path::PathBuf, host: &String, port: u16, network_magic: u32, pooltool_api_key: &String, cardano_node_path: &std::path::PathBuf, pool_name: &String, pool_id: &String) {
     let start_time = Instant::now();
 
     // continually retry connection
@@ -72,7 +72,7 @@ pub fn start(cmd: Cmd, db: &std::path::PathBuf, host: &String, port: u16, networ
                                         }
                                     }
                                     Err(e) => {
-                                        handle_error(&cmd, format!("mux_send_data error: {}", e), host, port);
+                                        handle_error(out, &cmd, format!("mux_send_data error: {}", e), host, port);
                                         break;
                                     }
                                 }
@@ -92,20 +92,20 @@ pub fn start(cmd: Cmd, db: &std::path::PathBuf, host: &String, port: u16, networ
                                             }
                                         }
                                         Err(e) => {
-                                            handle_error(&cmd, format!("mux_receive_data error: {}", e), host, port);
+                                            handle_error(out, &cmd, format!("mux_receive_data error: {}", e), host, port);
                                             break;
                                         }
                                     }
                                 }
 
                                 // Add and Remove protocols depending on status
-                                mux_add_remove_protocols(&cmd, db, network_magic, &mut protocols, host, port, pooltool_api_key, cardano_node_path, pool_name, pool_id);
+                                mux_add_remove_protocols(out, &cmd, db, network_magic, &mut protocols, host, port, pooltool_api_key, cardano_node_path, pool_name, pool_id);
 
                                 if protocols.is_empty() {
                                     match cmd {
                                         Cmd::Ping => {
                                             // for ping, we need to print the final output
-                                            ping_json_success(connect_duration, start_time.elapsed(), host, port);
+                                            ping_json_success(out, connect_duration, start_time.elapsed(), host, port);
                                         }
                                         _ => { warn!("No more active protocols, exiting..."); }
                                     }
@@ -125,20 +125,20 @@ pub fn start(cmd: Cmd, db: &std::path::PathBuf, host: &String, port: u16, networ
                             match stream.shutdown(Shutdown::Both) {
                                 Ok(_) => {}
                                 Err(error) => {
-                                    handle_error(&cmd, format!("{}", error), host, port);
+                                    handle_error(out, &cmd, format!("{}", error), host, port);
                                 }
                             }
                         }
                         Err(e) => {
-                            handle_error(&cmd, format!("Failed to connect: {}", e), host, port);
+                            handle_error(out, &cmd, format!("Failed to connect: {}", e), host, port);
                         }
                     }
                 } else {
-                    handle_error(&cmd, format!("No IP addresses found!"), host, port);
+                    handle_error(out, &cmd, format!("No IP addresses found!"), host, port);
                 }
             }
             Err(error) => {
-                handle_error(&cmd, format!("{}", error), host, port);
+                handle_error(out, &cmd, format!("{}", error), host, port);
             }
         }
 
@@ -210,7 +210,7 @@ fn mux_receive_data(protocols: &mut Vec<MiniProtocol>, stream: &mut TcpStream) -
     Ok(did_receive_data)
 }
 
-fn mux_add_remove_protocols(cmd: &Cmd, db: &PathBuf, network_magic: u32, protocols: &mut Vec<MiniProtocol>, host: &String, port: u16, pooltool_api_key: &String, cardano_node_path: &PathBuf, pool_name: &String, pool_id: &String) {
+fn mux_add_remove_protocols<W: Write>(out: &mut W, cmd: &Cmd, db: &PathBuf, network_magic: u32, protocols: &mut Vec<MiniProtocol>, host: &String, port: u16, pooltool_api_key: &String, cardano_node_path: &PathBuf, pool_name: &String, pool_id: &String) {
     let mut protocols_to_add: Vec<MiniProtocol> = Vec::new();
     // Remove any protocols that have a result (are done)
     protocols.retain(|protocol| {
@@ -260,7 +260,7 @@ fn mux_add_remove_protocols(cmd: &Cmd, db: &PathBuf, network_magic: u32, protoco
                                 }
                             }
                             Err(error) => {
-                                handle_error(cmd, format!("HandshakeProtocol Error: {}", error), host, port);
+                                handle_error(out, cmd, format!("HandshakeProtocol Error: {}", error), host, port);
                             }
                         }
                         false
@@ -306,30 +306,30 @@ fn mux_add_remove_protocols(cmd: &Cmd, db: &PathBuf, network_magic: u32, protoco
     protocols.append(&mut protocols_to_add);
 }
 
-fn ping_json_success(connect_duration: Duration, total_duration: Duration, host: &String, port: u16) {
-    println!("{{\n\
+fn ping_json_success<W: Write>(out: &mut W, connect_duration: Duration, total_duration: Duration, host: &String, port: u16) {
+    write!(out, "{{\n\
         \x20\"status\": \"ok\",\n\
         \x20\"host\": \"{}\",\n\
         \x20\"port\": {},\n\
         \x20\"connectDurationMs\": {},\n\
         \x20\"durationMs\": {}\n\
-    }}", host, port, connect_duration.as_millis(), total_duration.as_millis());
+    }}", host, port, connect_duration.as_millis(), total_duration.as_millis()).unwrap();
 }
 
-fn handle_error(cmd: &Cmd, message: String, host: &String, port: u16) {
+fn handle_error<W: Write>(out: &mut W, cmd: &Cmd, message: String, host: &String, port: u16) {
     match cmd {
-        Cmd::Ping => { ping_json_error(message, host, port); }
+        Cmd::Ping => { ping_json_error(out, message, host, port); }
         _ => { error!("{}", message); }
     }
 }
 
-fn ping_json_error(message: String, host: &String, port: u16) {
-    println!("{{\n\
+fn ping_json_error<W: Write>(out: &mut W, message: String, host: &String, port: u16) {
+    write!(out, "{{\n\
         \x20\"status\": \"error\",\n\
         \x20\"host\": \"{}\",\n\
         \x20\"port\": {},\n\
         \x20\"errorMessage\": \"{}\"\n\
-    }}", host, port, message);
+    }}", host, port, message).unwrap();
     // blow out of the process
     exit(0);
 }
