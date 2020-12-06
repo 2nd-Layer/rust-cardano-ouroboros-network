@@ -361,7 +361,7 @@ impl Protocol for ChainSyncProtocol {
                             }).ok()?;
                             for (i, block) in blocks.enumerate() {
                                 // all powers of 2 including 0th element 0, 2, 4, 8, 16, 32
-                                if (i != 1) && (i & (i - 1) == 0) {
+                                if (i == 0) || ((i > 1) && (i & (i - 1) == 0)) {
                                     chain_blocks.push(block.unwrap());
                                 }
                             }
