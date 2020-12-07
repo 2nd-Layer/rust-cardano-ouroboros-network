@@ -6,6 +6,9 @@ This crate implements the networking layer for the Ouroboros blockchain protocol
 ## Submit Pull Requests
 This repository implements a [GitHub Action](https://github.com/aslafy-z/conventional-pr-title-action) to make sure that the PR name follows [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). Make sure your PRs follow the referred specification to pass Continuous Integration testing. 
 
+## Sponsorship
+You may sponsor this project on Patreon, or it's individual contributors, another way how to support this project is to delegate to [**DOLCA** Cardano Stake Pool](https://dolca.2ndlayer.eu).
+
 # Ouroboros Network Protocol Documenation
 There are two documents which describe various levels of the networking layer of the Cardano Node Shelley implementation:
 
@@ -44,3 +47,5 @@ There are two documents which describe various levels of the networking layer of
 This project is licensed under either of the following licenses:
   - GNU General Public License v3.0 (LICENSE or https://www.gnu.org/licenses/gpl-3.0-standalone.html)
   - GNU Lesser General Public License v3.0 (COPYING.LESSER or https://www.gnu.org/licenses/lgpl-3.0-standalone.html)
+  
+  If for some reason you need different license, please [open an issue](https://github.com/2nd-Layer/rust-cardano-ouroboros-network/issues), we will evaluate your request for project-specific licensing.
