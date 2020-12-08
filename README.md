@@ -13,7 +13,7 @@ You may sponsor this project on Patreon, or it's individual contributors, anothe
 - Pavel Šimerda
   - ADA UTXO: 
 - Andrew Westberg
-  - ADA UTXO: addr1q9vmyd99hqde93nu8hvv3ee5ejrdcfex9cy8v6w7r6jrzu0l27sthj42mfetdc7kmyzycssdr2xajau53pxnjqslr63sp7jrau
+  - Cardano (ADA) UTXO: addr1q9vmyd99hqde93nu8hvv3ee5ejrdcfex9cy8v6w7r6jrzu0l27sthj42mfetdc7kmyzycssdr2xajau53pxnjqslr63sp7jrau
 
 # Ouroboros Network Protocol Documenation
 There are two documents which describe various levels of the networking layer of the Cardano Node Shelley implementation:
