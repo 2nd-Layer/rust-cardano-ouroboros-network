@@ -10,10 +10,12 @@ This repository implements a [GitHub Action](https://github.com/aslafy-z/convent
 You may sponsor this project on Patreon, or it's individual contributors, another way to support this project is to delegate to [**DOLCA** Cardano Stake Pool](https://dolca.2ndlayer.eu).
 
 ### Individual Contributors
-- Pavel Šimerda
-  - ADA UTXO: 
-- Andrew Westberg
+- Pavel Šimerda - Lead Developer
+  - Cardano (ADA) UTXO: 
+- Andrew Westberg - Frequent Contributor
   - Cardano (ADA) UTXO: addr1q9vmyd99hqde93nu8hvv3ee5ejrdcfex9cy8v6w7r6jrzu0l27sthj42mfetdc7kmyzycssdr2xajau53pxnjqslr63sp7jrau
+ - Mark Stopka - Project Manager & Primary Source of Funding
+  - Cardano (ADA) UTXO: addr1q8n9fvnsdtdt5fpgtl5tmcwuffx6p8ghnglvdt9ww29sp2x55ludjw69v2yunl2p8utckd79etn7m3uaw69swxkmanlq4tvnkk
 
 # Ouroboros Network Protocol Documenation
 There are two documents which describe various levels of the networking layer of the Cardano Node Shelley implementation:
