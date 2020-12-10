@@ -1,15 +1,32 @@
-use std::env;
-use std::io::stdout;
-use std::path::PathBuf;
+/**
+© 2020 PERLUR Group
+
+SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
+
+*/
 
 use cardano_ouroboros_network::mux;
+use futures::{
+    executor::block_on,
+    future::join_all,
+};
+use log::info;
+use std::env;
+
+mod common;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let host = &args[1];
-    let port = 3001;
-    let network_magic = 764824073;
-    let mut stdout = stdout();
+    let cfg = common::init();
 
-    mux::start(&mut stdout, mux::Cmd::Ping, &PathBuf::new(), host, port, network_magic, &String::new(), &PathBuf::new(), &String::new(), &String::new());
+    block_on(async {
+        let mut args = env::args();
+
+        args.next();
+        join_all(args.map(|arg| async {
+            let host = arg;
+            let port = cfg.port;
+            let _channel = mux::tcp::connect(&host, port, cfg.magic).await;
+            info!("Ping {}:{} finished.", &host, port);
+        })).await;
+    });
 }
