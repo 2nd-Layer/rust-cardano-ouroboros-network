@@ -24,9 +24,9 @@ pub enum State {
 }
 
 pub struct HandshakeProtocol {
-    pub(crate) state: State,
-    pub(crate) network_magic: u32,
-    pub(crate) result: Option<Result<String, String>>,
+    pub state: State,
+    pub network_magic: u32,
+    pub result: Option<Result<String, String>>,
 }
 
 impl Default for HandshakeProtocol {
