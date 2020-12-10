@@ -10,6 +10,12 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 */
 pub mod mux;
 pub mod protocols;
+pub mod storage;
+
+use std::io;
+use crate::{
+    storage::msg_roll_forward::MsgRollForward,
+};
 
 pub trait Protocol {
     // Each protocol has a unique hardcoded id
@@ -37,4 +43,9 @@ pub enum Agency {
     Server,
     // End of exchange
     None,
+}
+
+pub trait BlockStore {
+    fn save_block(&mut self, pending_blocks: &mut Vec<MsgRollForward>, network_magic: u32) -> io::Result<()>;
+    fn load_blocks(&mut self) -> Option<Vec<(i64, Vec<u8>)>>;
 }

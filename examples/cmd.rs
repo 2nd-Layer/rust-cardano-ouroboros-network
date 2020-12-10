@@ -1,13 +1,10 @@
 /**
-Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
-© 2020 Andrew Westberg licensed under Apache-2.0
-
-Re-licensed under GPLv3 or LGPLv3
 © 2020 PERLUR Group
 
 SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
 */
+
 use cardano_ouroboros_network::{
     mux,
     protocols::{
@@ -29,6 +26,9 @@ use std::{
     path::PathBuf,
     env,
 };
+
+mod common;
+mod sqlite;
 
 pub enum Cmd {
     Ping,
@@ -81,15 +81,12 @@ pub fn start<W: Write>(out: &mut W, cmd: Cmd, db: &std::path::PathBuf, host: &St
                 Cmd::Sync => {
                     try_join!(
                         channel.execute(TxSubmissionProtocol::default()),
-                        channel.execute({
-                            let mut chainsync = ChainSyncProtocol {
-                                mode: Mode::Sync,
-                                network_magic,
-                                ..Default::default()
-                            };
-                            chainsync.init_database(db).expect("Error opening database!");
-                            chainsync
-                        }),
+                        channel.execute({ChainSyncProtocol {
+                            mode: Mode::Sync,
+                            network_magic,
+                            store: Some(Box::new(sqlite::SQLiteBlockStore::new(&db).unwrap())),
+                            ..Default::default()
+                        }}),
                     ).unwrap();
                 }
                 Cmd::SendTip => {
@@ -111,8 +108,6 @@ pub fn start<W: Write>(out: &mut W, cmd: Cmd, db: &std::path::PathBuf, host: &St
         }
     })
 }
-
-mod common;
 
 fn main() {
     let mut args = env::args();

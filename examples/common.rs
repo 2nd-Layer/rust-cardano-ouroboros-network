@@ -1,3 +1,10 @@
+/**
+© 2020 PERLUR Group
+
+SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
+
+*/
+
 use simple_logger::SimpleLogger;
 use std::path::PathBuf;
 

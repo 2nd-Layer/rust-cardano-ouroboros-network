@@ -1,3 +1,10 @@
+/**
+© 2020 PERLUR Group
+
+SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
+
+*/
+
 use cardano_ouroboros_network::{
     mux,
     protocols::{
@@ -11,6 +18,7 @@ use futures::{
 };
 
 mod common;
+mod sqlite;
 
 fn main() {
     let cfg = common::init();
@@ -19,15 +27,12 @@ fn main() {
         let channel = mux::tcp::connect(&cfg.host, cfg.port, cfg.magic).await.unwrap();
         try_join!(
             channel.execute(TxSubmissionProtocol::default()),
-            channel.execute({
-                let mut chainsync = ChainSyncProtocol {
-                    mode: Mode::Sync,
-                    network_magic: cfg.magic,
-                    ..Default::default()
-                };
-                chainsync.init_database(&cfg.db).expect("Database error!");
-                chainsync
-            }),
+            channel.execute({ChainSyncProtocol {
+                mode: Mode::Sync,
+                network_magic: cfg.magic,
+                store: Some(Box::new(sqlite::SQLiteBlockStore::new(&cfg.db).unwrap())),
+                ..Default::default()
+            }}),
         ).unwrap();
     });
 }
