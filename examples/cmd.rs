@@ -46,18 +46,11 @@ fn ping_json_success<W: Write>(out: &mut W, connect_duration: Duration, total_du
     }}", host, port, connect_duration.as_millis(), total_duration.as_millis()).unwrap();
 }
 
-async fn connect(host: &str, port: u16) -> io::Result<mux::tcp::Channel> {
-    let saddr = (host, port).to_socket_addrs()?.nth(0).unwrap();
-    let stream = TcpStream::connect(&saddr)?;
-
-    Ok(mux::tcp::Channel::new(stream).await)
-}
-
 pub fn start<W: Write>(out: &mut W, cmd: Cmd, db: &std::path::PathBuf, host: &String, port: u16, network_magic: u32, pooltool_api_key: &String, cardano_node_path: &std::path::PathBuf, pool_name: &String, pool_id: &String) {
     block_on(async {
         // continually retry connection
         loop {
-            let channel = match connect(host, port).await {
+            let channel = match mux::tcp::connect(host, port).await {
                 Ok(channel) => { channel }
                 Err(_) => {
                     sleep(Duration::from_secs(5));
@@ -65,10 +58,7 @@ pub fn start<W: Write>(out: &mut W, cmd: Cmd, db: &std::path::PathBuf, host: &St
                 }
             };
             let connect_duration = channel.duration();
-            let handshake = HandshakeProtocol {
-                network_magic,
-                ..Default::default()
-            };
+            channel.handshake(cfg.magic).await.unwrap();
             if channel.execute(handshake).await.is_err() {
                 sleep(Duration::from_secs(5));
                 continue;

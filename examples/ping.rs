@@ -25,8 +25,10 @@ fn main() {
         join_all(args.map(|arg| async {
             let host = arg;
             let port = cfg.port;
-            let _channel = mux::tcp::connect(&host, port, cfg.magic).await;
-            info!("Ping {}:{} finished.", &host, port);
+            let channel = mux::tcp::connect(&host, port).await.unwrap();
+            info!("Connected.");
+            channel.handshake(cfg.magic).await.unwrap();
+            info!("Handshaked.");
         })).await;
     });
 }

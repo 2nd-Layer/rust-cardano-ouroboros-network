@@ -20,15 +20,10 @@ use crate::{
     protocols::handshake::HandshakeProtocol,
 };
 
-pub async fn connect(host: &str, port: u16, magic: u32) -> io::Result<Channel> {
+pub async fn connect(host: &str, port: u16) -> io::Result<Channel> {
+    /* TODO: Consider asynchronous operations */
     let saddr = (host, port).to_socket_addrs().unwrap().nth(0).unwrap();
-    // TODO: Asynchronous connect.
-    let channel = Channel::new(TcpStream::connect(&saddr).unwrap()).await;
-    channel.execute(HandshakeProtocol {
-        network_magic: magic,
-        ..Default::default()
-    }).await?;
-    Ok(channel)
+    Ok(Channel::new(TcpStream::connect(&saddr).unwrap()))
 }
 
 pub struct Channel {
@@ -36,19 +31,25 @@ pub struct Channel {
 }
 
 impl Channel {
-    pub async fn new(stream: TcpStream) -> Self {
-        let channel = Channel {
+    pub fn new(stream: TcpStream) -> Self {
+        Channel {
             shared: Rc::new(RefCell::new(ChannelShared {
                 start_time: Instant::now(),
                 stream,
                 protocols: vec![],
             })),
-        };
-        channel
+        }
     }
 
     pub fn duration(&self) -> Duration {
         self.shared.borrow().start_time.elapsed()
+    }
+
+    pub async fn handshake(&self, magic: u32) -> io::Result<String> {
+        self.execute(HandshakeProtocol {
+            network_magic: magic,
+            ..Default::default()
+        }).await
     }
 
     pub async fn execute(&self, protocol: impl Protocol + 'static) -> io::Result<String> {
