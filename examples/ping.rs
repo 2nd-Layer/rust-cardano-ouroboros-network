@@ -17,17 +17,24 @@ mod common;
 
 fn main() {
     let cfg = common::init();
+    let port = cfg.port;
+    let magic = cfg.magic;
 
     block_on(async {
-        let mut args = env::args();
+        let mut args: Vec<String> = env::args().collect();
 
-        args.next();
-        join_all(args.map(|arg| async {
-            let host = arg;
-            let port = cfg.port;
+        args.remove(0);
+
+        /* Use configured host by default. */
+        if args.len() == 0 {
+            args = vec![cfg.host.clone()];
+        }
+
+        join_all(args.iter().map(|host| async move {
+            info!("Pinging host {} port {} magic {}.", host, port, magic);
             let channel = mux::tcp::connect(&host, port).await.unwrap();
             info!("Connected.");
-            channel.handshake(cfg.magic).await.unwrap();
+            channel.handshake(magic).await.unwrap();
             info!("Handshaked.");
         })).await;
     });
