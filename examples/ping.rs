@@ -6,14 +6,27 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 */
 
 use cardano_ouroboros_network::mux;
+use std::{
+    env,
+    time::Duration,
+};
+use log::{info, error};
 use futures::{
     executor::block_on,
     future::join_all,
+    io::Error,
 };
-use log::info;
-use std::env;
 
 mod common;
+
+async fn ping(host: &String, port: u16, magic: u32) -> Result<(Duration, Duration), Error>{
+    info!("Pinging host {} port {} magic {}.", host, port, magic);
+    let channel = mux::tcp::connect(&host, port).await?;
+    let connect_duration = channel.duration();
+    channel.handshake(magic).await?;
+    let total_duration = channel.duration();
+    Ok((connect_duration, total_duration))
+}
 
 fn main() {
     let cfg = common::init();
@@ -31,11 +44,14 @@ fn main() {
         }
 
         join_all(args.iter().map(|host| async move {
-            info!("Pinging host {} port {} magic {}.", host, port, magic);
-            let channel = mux::tcp::connect(&host, port).await.unwrap();
-            info!("Connected.");
-            channel.handshake(magic).await.unwrap();
-            info!("Handshaked.");
+            match ping(&host.clone(), port, magic).await {
+                Ok((connect_duration, total_duration)) => {
+                    info!("Ping {}:{} success! : connect_duration: {}, total_duration: {}", &host, port, connect_duration.as_millis(), total_duration.as_millis());
+                }
+                Err(error) => {
+                    error!("Ping {}:{} failed! : {:?}", &host, port, error);
+                }
+            }
         })).await;
     });
 }
