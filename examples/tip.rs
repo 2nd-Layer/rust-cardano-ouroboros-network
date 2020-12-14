@@ -16,9 +16,9 @@ use futures::{
     executor::block_on,
     try_join,
 };
+use std::path::PathBuf;
 
 mod common;
-mod sqlite;
 
 fn main() {
     let cfg = common::init();
@@ -28,12 +28,15 @@ fn main() {
         channel.handshake(cfg.magic).await.unwrap();
         try_join!(
             channel.execute(TxSubmissionProtocol::default()),
-            channel.execute({ChainSyncProtocol {
-                mode: Mode::Sync,
+            channel.execute(ChainSyncProtocol {
+                mode: Mode::SendTip,
                 network_magic: cfg.magic,
-                store: Some(Box::new(sqlite::SQLiteBlockStore::new(&cfg.db).unwrap())),
+                pooltool_api_key: String::new(),
+                cardano_node_path: PathBuf::new(),
+                pool_name: String::new(),
+                pool_id: String::new(),
                 ..Default::default()
-            }}),
+            }),
         ).unwrap();
     });
 }
