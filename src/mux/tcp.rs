@@ -48,14 +48,11 @@ impl Channel {
         self.shared.borrow().start_time.elapsed()
     }
 
-    pub async fn handshake(&self, magic: u32) -> io::Result<String> {
-        self.execute(HandshakeProtocol {
-            network_magic: magic,
-            ..Default::default()
-        }).await
+    pub async fn handshake(&self, magic: u32) -> Result<String, String> {
+        self.execute(HandshakeProtocol::new(magic)).await
     }
 
-    pub async fn execute(&self, protocol: impl Protocol + 'static) -> io::Result<String> {
+    pub async fn execute(&self, protocol: impl Protocol + 'static) -> Result<String, String> {
         let shared = self.shared.clone();
         let proto = Rc::new(RefCell::new(Box::new(protocol) as Box<dyn Protocol>));
         {
@@ -67,11 +64,15 @@ impl Channel {
         }
         loop {
             if proto.borrow_mut().get_agency() == Agency::None {
-                return Ok("Finished.".to_string());
+                return match Rc::try_unwrap(proto) {
+                    Ok(protocol) => protocol.into_inner().result(),
+                    Err(_) => panic!("Unexpected reference to a subchannel."),
+                }
             }
 
             {
                 let mut shared = shared.borrow_mut();
+                /* TODO: Consider using async operations and select! */
                 shared.process_tx().await;
                 shared.process_rx().await;
             }

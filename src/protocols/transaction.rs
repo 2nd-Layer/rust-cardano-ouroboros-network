@@ -53,6 +53,10 @@ impl Protocol for TxSubmissionProtocol {
         return 0x0004u16;
     }
 
+    fn result(&self) -> Result<String, String> {
+        self.result.clone().unwrap()
+    }
+
     fn get_agency(&self) -> Agency {
         return match self.state {
             State::Idle => { Agency::Server }

@@ -14,14 +14,16 @@ use log::{info, error};
 use futures::{
     executor::block_on,
     future::join_all,
-    io::Error,
 };
 
 mod common;
 
-async fn ping(host: &String, port: u16, magic: u32) -> Result<(Duration, Duration), Error>{
+async fn ping(host: &String, port: u16, magic: u32) -> Result<(Duration, Duration), String>{
     info!("Pinging host {} port {} magic {}.", host, port, magic);
-    let channel = mux::tcp::connect(&host, port).await?;
+    let channel = match mux::tcp::connect(&host, port).await {
+        Ok(channel) => channel,
+        Err(_) => { return Err("Could not connect.".to_string()) }
+    };
     let connect_duration = channel.duration();
     channel.handshake(magic).await?;
     let total_duration = channel.duration();

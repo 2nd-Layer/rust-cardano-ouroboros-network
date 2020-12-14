@@ -24,22 +24,20 @@ pub enum State {
 }
 
 pub struct HandshakeProtocol {
-    pub state: State,
-    pub network_magic: u32,
-    pub result: Option<Result<String, String>>,
-}
-
-impl Default for HandshakeProtocol {
-    fn default() -> Self {
-        HandshakeProtocol {
-            state: State::Propose,
-            network_magic: 764824073,
-            result: None,
-        }
-    }
+    network_magic: u32,
+    state: State,
+    result: Option<Result<String, String>>,
 }
 
 impl HandshakeProtocol {
+    pub fn new(network_magic: u32) -> Self {
+        HandshakeProtocol {
+            network_magic,
+            state: State::Propose,
+            result: None,
+        }
+    }
+
     // Serialize cbor for MsgProposeVersions
     //
     // Create the byte representation of MsgProposeVersions for sending to the server
@@ -79,6 +77,10 @@ impl HandshakeProtocol {
 impl Protocol for HandshakeProtocol {
     fn protocol_id(&self) -> u16 {
         return 0x0000u16;
+    }
+
+    fn result(&self) -> Result<String, String> {
+        self.result.clone().unwrap()
     }
 
     fn get_agency(&self) -> Agency {
