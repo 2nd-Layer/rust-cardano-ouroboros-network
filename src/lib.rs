@@ -15,7 +15,7 @@ pub mod storage;
 
 use std::io;
 use crate::{
-    storage::msg_roll_forward::MsgRollForward,
+    storage::msg_roll_forward::{MsgRollForward, Tip},
 };
 
 pub trait Protocol {
@@ -52,4 +52,8 @@ pub enum Agency {
 pub trait BlockStore {
     fn save_block(&mut self, pending_blocks: &mut Vec<MsgRollForward>, network_magic: u32) -> io::Result<()>;
     fn load_blocks(&mut self) -> Option<Vec<(i64, Vec<u8>)>>;
+}
+
+pub trait Notifier {
+    fn notify_tip(&mut self, tip: Tip, msg_roll_forward: MsgRollForward);
 }
