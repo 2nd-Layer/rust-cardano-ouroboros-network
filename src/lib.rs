@@ -22,6 +22,9 @@ pub trait Protocol {
     // Each protocol has a unique hardcoded id
     fn protocol_id(&self) -> u16;
 
+    // Each protocol can provide a result
+    fn result(&self) -> Result<String, String>;
+
     // Tells us what agency state the protocol is in
     fn get_agency(&self) -> Agency;
 
