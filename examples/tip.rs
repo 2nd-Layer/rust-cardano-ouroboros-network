@@ -16,7 +16,6 @@ use futures::{
     executor::block_on,
     try_join,
 };
-use std::path::PathBuf;
 
 mod common;
 
@@ -31,10 +30,6 @@ fn main() {
             channel.execute(ChainSyncProtocol {
                 mode: Mode::SendTip,
                 network_magic: cfg.magic,
-                pooltool_api_key: String::new(),
-                cardano_node_path: PathBuf::new(),
-                pool_name: String::new(),
-                pool_id: String::new(),
                 ..Default::default()
             }),
         ).unwrap();

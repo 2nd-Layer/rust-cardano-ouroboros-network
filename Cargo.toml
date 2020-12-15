@@ -38,3 +38,7 @@ crate-type = ["staticlib"]
 [[example]]
 name = "sqlite"
 crate-type = ["staticlib"]
+
+[[example]]
+name = "pooltool"
+crate-type = ["staticlib"]
