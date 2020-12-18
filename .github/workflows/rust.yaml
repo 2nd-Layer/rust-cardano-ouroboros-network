@@ -10,8 +10,8 @@ env:
 
 jobs:
   build:
+    runs-on: ${{ matrix.os }}
     name: Build Rust with Cargo
-    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v2
