@@ -16,6 +16,7 @@ use std::{
 };
 
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
+use net2::TcpStreamExt;
 
 use crate::{
     Agency, Protocol,
@@ -26,7 +27,10 @@ pub async fn connect(host: &str, port: u16) -> io::Result<Channel> {
     /* TODO: Consider asynchronous operations */
     let saddr = (host, port).to_socket_addrs()?.nth(0)
         .ok_or(Error::new(ErrorKind::NotFound, "No valid host found!"))?;
-    Ok(Channel::new(TcpStream::connect_timeout(&saddr, Duration::from_secs(2))?))
+    let stream = TcpStream::connect_timeout(&saddr, Duration::from_secs(2))?;
+    stream.set_nodelay(true).unwrap();
+    stream.set_keepalive_ms(Some(10_000u32)).unwrap();
+    Ok(Channel::new(stream))
 }
 
 pub struct Channel {
@@ -67,7 +71,7 @@ impl Channel {
                 return match Rc::try_unwrap(proto) {
                     Ok(protocol) => protocol.into_inner().result(),
                     Err(_) => panic!("Unexpected reference to a subchannel."),
-                }
+                };
             }
 
             {
