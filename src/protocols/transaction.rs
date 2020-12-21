@@ -60,13 +60,11 @@ impl Protocol for TxSubmissionProtocol {
     fn get_agency(&self) -> Agency {
         return match self.state {
             State::Idle => { Agency::Server }
-            State::TxIdsBlocking => {
-                // Typically, this would be client agency, but we pretend it's none since
-                // we just hang on to Client agency and never send any transactions.
-                Agency::None
-            }
+            State::TxIdsBlocking => { Agency::Client }
             State::TxIdsNonBlocking => { Agency::Client }
-            State::Done => { Agency::None }
+            State::Done => {
+                if self.result.is_none() { Agency::Client } else { Agency::None }
+            }
         };
     }
 
@@ -91,13 +89,13 @@ impl Protocol for TxSubmissionProtocol {
                 // Tell the server that we have no transactions to send them
                 let payload = self.msg_reply_tx_ids();
                 self.state = State::Idle;
-                return Some(payload);
+                Some(payload)
             }
             //State::Txs => { None }
             State::Done => {
                 warn!("TxSubmissionProtocol::State::Done");
                 self.result = Option::Some(Ok(String::from("Done")));
-                return None;
+                None
             }
         };
     }
