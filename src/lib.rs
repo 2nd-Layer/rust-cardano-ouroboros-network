@@ -19,7 +19,6 @@ use crate::{
     storage::msg_roll_forward::{MsgRollForward, Tip},
 };
 
-
 pub trait Protocol {
     // Each protocol has a unique hardcoded id
     fn protocol_id(&self) -> u16;
