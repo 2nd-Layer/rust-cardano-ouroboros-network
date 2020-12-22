@@ -9,15 +9,16 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
 */
 
+pub mod mux;
+pub mod protocols;
+pub mod storage;
+
 use std::io;
 
 use crate::{
     storage::msg_roll_forward::{MsgRollForward, Tip},
 };
 
-pub mod mux;
-pub mod protocols;
-pub mod storage;
 
 pub trait Protocol {
     // Each protocol has a unique hardcoded id
