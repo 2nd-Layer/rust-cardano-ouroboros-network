@@ -16,6 +16,7 @@ use std::{
 };
 
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
+use log::{log_enabled, trace};
 use net2::TcpStreamExt;
 
 use crate::{
@@ -30,6 +31,15 @@ pub async fn connect(host: &str, port: u16) -> io::Result<Channel> {
     let stream = TcpStream::connect_timeout(&saddr, Duration::from_secs(2))?;
     stream.set_nodelay(true).unwrap();
     stream.set_keepalive_ms(Some(10_000u32)).unwrap();
+
+    /*
+     * We're currently doing blocking I/O, so enabling these helps you see where the code is blocking
+     * and will throw errors instead. For now, leave these commented out and only enabled for debugging
+     * purposes. Async I/O will become much more important once we're running multiple protocols in parallel.
+     */
+    // stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    // stream.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+
     Ok(Channel::new(stream))
 }
 
@@ -83,7 +93,7 @@ impl Channel {
                         shared.process_tx().await;
                     }
                     Agency::Server => {
-                        shared.process_rx().await;
+                        shared.process_rx().await?;
                     }
                     Agency::None => {}
                 }
@@ -118,7 +128,12 @@ impl ChannelShared {
                                      *   * Asynchronous Rx.
                                      *   * Handle errors.
                                      */
-                                    self.stream.write(&msg).unwrap();
+                                    if log_enabled!(log::Level::Trace) {
+                                        trace!("tx bytes: {}", hex::encode(&msg));
+                                    }
+                                    let len = self.stream.write(&msg).unwrap();
+                                    trace!("tx size: {}", len);
+                                    self.stream.flush().unwrap();
                                 }
                                 _ => {}
                             }
@@ -130,7 +145,8 @@ impl ChannelShared {
             }
         }
     }
-    async fn process_rx(&mut self) {
+
+    async fn process_rx(&mut self) -> Result<(), String> {
         let mut should_receive = false;
         for subchannel in &self.protocols {
             match subchannel.upgrade() {
@@ -155,23 +171,32 @@ impl ChannelShared {
          *   * Asynchronous Rx.
          *   * Handle errors.
          */
-            let len = self.stream.peek(&mut header).unwrap();
-            if len >= header.len() {
-                self.stream.read_exact(&mut header).unwrap(); // TODO: Handle/ignore error.
-                let length = NetworkEndian::read_u16(&header[6..]) as usize;
-                let mut payload = vec![0u8; length];
-                self.stream.read_exact(&mut payload).unwrap(); // TODO: Handle/ignore error.
-                let _timestamp = NetworkEndian::read_u32(&mut header[0..4]);
-                let idx = NetworkEndian::read_u16(&mut header[4..6]) as usize ^ 0x8000;
-                match self.lookup(idx) {
-                    Some(cell) => {
-                        let mut protocol = cell.borrow_mut();
-                        protocol.receive_data(payload);
+            match self.stream.read_exact(&mut header) {
+                Ok(_) => {
+                    let length = NetworkEndian::read_u16(&header[6..]) as usize;
+                    let mut payload = vec![0u8; length];
+                    match self.stream.read_exact(&mut payload) {
+                        Ok(_) => {
+                            let _timestamp = NetworkEndian::read_u32(&mut header[0..4]);
+                            let idx = NetworkEndian::read_u16(&mut header[4..6]) as usize ^ 0x8000;
+                            match self.lookup(idx) {
+                                Some(cell) => {
+                                    let mut protocol = cell.borrow_mut();
+                                    protocol.receive_data(payload);
+                                }
+                                None => {}
+                            }
+                        }
+                        Err(error) => { return Err(format!("payload read error: {:?}", error)); }
                     }
-                    None => {}
+                }
+                Err(error) => {
+                    return Err(format!("header read error: {:?}", error));
                 }
             }
         }
+
+        Ok(())
     }
     fn lookup(&self, id: usize) -> Option<Rc<RefCell<Box<dyn Protocol>>>> {
         match self.protocols.get(id) {
