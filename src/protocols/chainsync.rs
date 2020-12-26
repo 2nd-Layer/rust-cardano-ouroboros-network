@@ -273,7 +273,8 @@ impl Protocol for ChainSyncProtocol {
                                 }
 
                                 /* Classic sync: Store header data. */
-                                self.save_block(msg_roll_forward);
+                                /* TODO: error handling */
+                                let _ = self.save_block(msg_roll_forward);
 
                                 self.state = State::Idle;
 

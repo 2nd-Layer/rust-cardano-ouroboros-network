@@ -1,6 +1,6 @@
 use cardano_ouroboros_network::{
-    Notifier,
-    storage::msg_roll_forward::{Tip, MsgRollForward},
+    storage::msg_roll_forward::MsgRollForward,
+    protocols::chainsync::Listener,
 };
 use std::path::PathBuf;
 use log::{info, error};
@@ -57,8 +57,8 @@ struct PooltoolData {
     platform: String,
 }
 
-impl Notifier for PoolTool {
-    fn notify_tip(&mut self, tip: Tip, msg_roll_forward: MsgRollForward) {
+impl Listener for PoolTool {
+    fn handle_tip(&mut self, header: &MsgRollForward) {
         if self.last_node_version_time.elapsed() > Duration::from_secs(3600) {
             // Our node version is outdated. Make a call to update it.
             let output = Command::new(&self.cardano_node_path)
@@ -83,11 +83,11 @@ impl Notifier for PoolTool {
                         node_id: "".to_string(),
                         version: self.node_version.clone(),
                         at: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                        block_no: tip.block_number,
-                        slot_no: tip.slot_number,
-                        block_hash: hex::encode(&tip.hash),
-                        parent_hash: hex::encode(&msg_roll_forward.prev_hash),
-                        leader_vrf: hex::encode(&msg_roll_forward.leader_vrf_0),
+                        block_no: header.block_number,
+                        slot_no: header.slot_number,
+                        block_hash: hex::encode(&header.hash),
+                        parent_hash: hex::encode(&header.prev_hash),
+                        leader_vrf: hex::encode(&header.leader_vrf_0),
                         platform: "cncli".to_string(),
                     },
                 }
@@ -98,7 +98,7 @@ impl Notifier for PoolTool {
             Ok(response) => {
                 match response.text() {
                     Ok(text) => {
-                        info!("Pooltool ({}, {}): ({}, {}), json: {}", &self.pool_name, &self.pool_id[..8], &tip.block_number, hex::encode(&tip.hash[..8]), text);
+                        info!("Pooltool ({}, {}): ({}, {}), json: {}", &self.pool_name, &self.pool_id[..8], &header.block_number, hex::encode(&header.hash[..8]), text);
                     }
                     Err(error) => { error!("PoolTool error: {}", error); }
                 }
