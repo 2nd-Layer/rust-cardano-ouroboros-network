@@ -49,6 +49,15 @@ impl HandshakeProtocol {
         }
     }
 
+    pub fn expect(network_magic: u32) -> Self {
+        HandshakeProtocol {
+            role: Agency::Server,
+            network_magic,
+            state: State::Propose,
+            result: None,
+        }
+    }
+
     // Serialize cbor for MsgProposeVersions
     //
     // Create the byte representation of MsgProposeVersions for sending to the server
@@ -165,7 +174,7 @@ impl Protocol for HandshakeProtocol {
         let idx: u16 = 0;
         match self.role {
             Agency::Client => idx,
-            Agency::Server => idx & 0x8000,
+            Agency::Server => idx ^ 0x8000,
             _ => panic!("unknown role"),
         }
     }
@@ -191,30 +200,36 @@ impl Protocol for HandshakeProtocol {
     }
 
     fn send_data(&mut self) -> Option<Vec<u8>> {
-        return match self.state {
+        debug!("send: {:?}", self.state);
+        match self.state {
             State::Propose => {
-                debug!("HandshakeProtocol::State::Propose");
                 let payload = self.msg_propose_versions(self.network_magic);
                 self.state = State::Confirm;
                 Some(payload)
             }
             State::Confirm => {
-                debug!("HandshakeProtocol::State::Confirm");
-                None
+                /* TODO: [stub] implement proper negotiation */
+                let payload = hex::decode("830105821a2d964a09f4").unwrap();
+                self.state = State::Done;
+                Some(payload)
             }
-            State::Done => {
-                debug!("HandshakeProtocol::State::Done");
-                None
-            }
-        };
+            State::Done => panic!("unexpected send"),
+        }
     }
 
     fn receive_data(&mut self, data: Vec<u8>) {
-        let confirm: Value = de::from_slice(&data[..]).unwrap();
-        debug!("Confirm: {:?}", &confirm);
-        self.result = Some(self.validate_data(confirm, hex::encode(data)));
-
-        debug!("HandshakeProtocol::State::Done");
-        self.state = State::Done
+        debug!("recv: {:?}", self.state);
+        match self.state {
+            State::Propose => {
+                self.state = State::Confirm;
+            }
+            State::Confirm => {
+                let confirm: Value = de::from_slice(&data[..]).unwrap();
+                debug!("Confirm: {:?}", &confirm);
+                self.result = Some(self.validate_data(confirm, hex::encode(data)));
+                self.state = State::Done;
+            }
+            State::Done => panic!("unexpected recv"),
+        }
     }
 }

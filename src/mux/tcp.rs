@@ -75,6 +75,7 @@ impl Channel {
             let newlen = max(shared.protocols.len(), id + 1);
             shared.protocols.resize(newlen, Weak::new());
             shared.protocols[id] = Rc::downgrade(&proto);
+            trace!("started subchannel {:04x}", id);
         }
         loop {
             let agency = proto.borrow_mut().get_agency();
@@ -87,16 +88,10 @@ impl Channel {
 
             {
                 let mut shared = shared.borrow_mut();
+
                 /* TODO: Consider using async operations and select! */
-                match agency {
-                    Agency::Client => {
-                        shared.process_tx().await;
-                    }
-                    Agency::Server => {
-                        shared.process_rx().await?;
-                    }
-                    Agency::None => {}
-                }
+                shared.process_rx().await?;
+                shared.process_tx().await;
             }
         }
     }
@@ -114,31 +109,28 @@ impl ChannelShared {
             match subchannel.upgrade() {
                 Some(protocol) => {
                     let mut protocol = protocol.borrow_mut();
-                    match protocol.get_agency() {
-                        Agency::Client => {
-                            match protocol.send_data() {
-                                Some(payload) => {
-                                    let id = protocol.protocol_id();
-                                    let mut msg = Vec::new();
-                                    msg.write_u32::<NetworkEndian>(self.start_time.elapsed().as_micros() as u32).unwrap();
-                                    msg.write_u16::<NetworkEndian>(id).unwrap();
-                                    msg.write_u16::<NetworkEndian>(payload.len() as u16).unwrap();
-                                    msg.write(&payload[..]).unwrap();
-                                    /* TODO:
-                                     *   * Asynchronous Rx.
-                                     *   * Handle errors.
-                                     */
-                                    if log_enabled!(log::Level::Trace) {
-                                        trace!("tx bytes: {}", hex::encode(&msg));
-                                    }
-                                    let len = self.stream.write(&msg).unwrap();
-                                    trace!("tx size: {}", len);
-                                    self.stream.flush().unwrap();
+                    if protocol.get_agency() == protocol.role() {
+                        match protocol.send_data() {
+                            Some(payload) => {
+                                let id = protocol.protocol_id();
+                                let mut msg = Vec::new();
+                                msg.write_u32::<NetworkEndian>(self.start_time.elapsed().as_micros() as u32).unwrap();
+                                msg.write_u16::<NetworkEndian>(id).unwrap();
+                                msg.write_u16::<NetworkEndian>(payload.len() as u16).unwrap();
+                                msg.write(&payload[..]).unwrap();
+                                /* TODO:
+                                 *   * Asynchronous Rx.
+                                 *   * Handle errors.
+                                 */
+                                if log_enabled!(log::Level::Trace) {
+                                    trace!("tx bytes: {}", hex::encode(&msg));
                                 }
-                                _ => {}
+                                let len = self.stream.write(&msg).unwrap();
+                                trace!("tx size: {}", len);
+                                self.stream.flush().unwrap();
                             }
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
                 _ => {}
@@ -152,13 +144,10 @@ impl ChannelShared {
             match subchannel.upgrade() {
                 Some(protocol) => {
                     let protocol = protocol.borrow();
-                    match protocol.get_agency() {
-                        Agency::Server => {
-                            // at least one protocol has server agency
-                            should_receive = true;
-                            break;
-                        }
-                        _ => {}
+                    if protocol.get_agency() != protocol.role() {
+                        // We're waiting for at least one protocol
+                        should_receive = true;
+                        break;
                     }
                 }
                 _ => {}
@@ -168,19 +157,21 @@ impl ChannelShared {
         if should_receive {
             let mut header = [0u8; 8];
             /* TODO:
-         *   * Asynchronous Rx.
-         *   * Handle errors.
-         */
+             *   * Asynchronous Rx.
+             *   * Handle errors.
+             */
             match self.stream.read_exact(&mut header) {
                 Ok(_) => {
                     let length = NetworkEndian::read_u16(&header[6..]) as usize;
                     let mut payload = vec![0u8; length];
                     match self.stream.read_exact(&mut payload) {
                         Ok(_) => {
+                            trace!("rx bytes: {} {}", hex::encode(&header), hex::encode(&payload));
                             let _timestamp = NetworkEndian::read_u32(&mut header[0..4]);
                             let idx = NetworkEndian::read_u16(&mut header[4..6]) as usize ^ 0x8000;
                             match self.lookup(idx) {
                                 Some(cell) => {
+                                    /* TODO: Verify agency */
                                     let mut protocol = cell.borrow_mut();
                                     protocol.receive_data(payload);
                                 }

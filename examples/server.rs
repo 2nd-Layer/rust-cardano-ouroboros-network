@@ -1,6 +1,8 @@
 use cardano_ouroboros_network::{
     mux::tcp::Channel,
-    protocols::pingpong::PingPongProtocol,
+    protocols::{
+        handshake,
+    },
 };
 use std::net::TcpListener;
 use log::info;
@@ -17,6 +19,8 @@ fn main() {
         let channel = Channel::new(stream);
 
         info!("New client!");
-        block_on(channel.serve(0x100, PingPongProtocol::new())).unwrap();
+        block_on(async {
+            channel.execute(handshake::HandshakeProtocol::expect(cfg.magic)).await.unwrap();
+        })
     }
 }
