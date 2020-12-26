@@ -18,6 +18,14 @@ use log::info;
 
 mod common;
 
+struct ExampleNotifier {}
+
+impl Notifier for ExampleNotifier {
+    fn notify_tip(&mut self, tip: Tip, _msg_roll_forward: MsgRollForward) {
+        info!("Tip reached: {:?}!", tip);
+    }
+}
+
 fn main() {
     let cfg = common::init();
 
@@ -27,6 +35,7 @@ fn main() {
         channel.execute(ChainSyncProtocol {
             mode: Mode::SendTip,
             network_magic: cfg.magic,
+            notify: Some(Box::new(ExampleNotifier {})),
             ..Default::default()
         }).await.unwrap();
     });
