@@ -43,7 +43,7 @@ pub trait Protocol {
     fn receive_data(&mut self, data: Vec<u8>);
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Agency {
     // Client continues
     Client,

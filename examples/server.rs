@@ -2,6 +2,7 @@ use cardano_ouroboros_network::{
     mux::tcp::Channel,
     protocols::{
         handshake,
+        pingpong,
     },
 };
 use std::net::{TcpListener, TcpStream};
@@ -28,6 +29,7 @@ fn handle(stream: TcpStream, cfg: &common::Config) -> Result<(), String> {
     info!("new client!");
     block_on(async {
         channel.execute(handshake::HandshakeProtocol::expect(cfg.magic)).await?;
+        channel.execute(pingpong::PingPongProtocol::expect(0x0100)).await?;
         Ok(())
     })
 }

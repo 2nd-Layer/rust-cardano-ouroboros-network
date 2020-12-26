@@ -210,6 +210,7 @@ impl Protocol for HandshakeProtocol {
             State::Confirm => {
                 /* TODO: [stub] implement proper negotiation */
                 let payload = hex::decode("830105821a2d964a09f4").unwrap();
+                self.result = Some(Ok("[stub] confirmed".to_string()));
                 self.state = State::Done;
                 Some(payload)
             }
