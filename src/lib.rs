@@ -26,6 +26,9 @@ pub trait Protocol {
     // Each protocol can provide a result
     fn result(&self) -> Result<String, String>;
 
+    // We have a client or server role in the protocol
+    fn role(&self) -> Agency;
+
     // Tells us what agency state the protocol is in
     fn get_agency(&self) -> Agency;
 
@@ -40,7 +43,7 @@ pub trait Protocol {
     fn receive_data(&mut self, data: Vec<u8>);
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum Agency {
     // Client continues
     Client,
