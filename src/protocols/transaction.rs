@@ -57,6 +57,10 @@ impl Protocol for TxSubmissionProtocol {
         self.result.clone().unwrap()
     }
 
+    fn role(&self) -> Agency {
+        Agency::Client
+    }
+
     fn get_agency(&self) -> Agency {
         return match self.state {
             State::Idle => { Agency::Server }

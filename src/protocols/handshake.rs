@@ -33,6 +33,7 @@ pub enum State {
 }
 
 pub struct HandshakeProtocol {
+    role: Agency,
     network_magic: u32,
     state: State,
     result: Option<Result<String, String>>,
@@ -41,6 +42,7 @@ pub struct HandshakeProtocol {
 impl HandshakeProtocol {
     pub fn new(network_magic: u32) -> Self {
         HandshakeProtocol {
+            role: Agency::Client,
             network_magic,
             state: State::Propose,
             result: None,
@@ -160,11 +162,20 @@ impl HandshakeProtocol {
 
 impl Protocol for HandshakeProtocol {
     fn protocol_id(&self) -> u16 {
-        return 0x0000u16;
+        let idx: u16 = 0;
+        match self.role {
+            Agency::Client => idx,
+            Agency::Server => idx & 0x8000,
+            _ => panic!("unknown role"),
+        }
     }
 
     fn result(&self) -> Result<String, String> {
         self.result.clone().unwrap()
+    }
+
+    fn role(&self) -> Agency {
+        self.role
     }
 
     fn get_agency(&self) -> Agency {

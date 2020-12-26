@@ -124,6 +124,10 @@ impl Protocol for ChainSyncProtocol {
         self.result.clone().unwrap()
     }
 
+    fn role(&self) -> Agency {
+        Agency::Client
+    }
+
     fn get_agency(&self) -> Agency {
         return match self.state {
             State::Idle => { Agency::Client }
