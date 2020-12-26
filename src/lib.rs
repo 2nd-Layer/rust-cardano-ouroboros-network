@@ -16,7 +16,7 @@ pub mod storage;
 use std::io;
 
 use crate::{
-    storage::msg_roll_forward::{MsgRollForward, Tip},
+    storage::msg_roll_forward::MsgRollForward,
 };
 
 pub trait Protocol {
@@ -59,5 +59,5 @@ pub trait BlockStore {
 }
 
 pub trait Notifier {
-    fn notify_tip(&mut self, tip: Tip, msg_roll_forward: MsgRollForward);
+    fn notify_tip(&mut self, msg_roll_forward: MsgRollForward);
 }

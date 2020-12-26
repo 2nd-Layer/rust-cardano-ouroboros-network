@@ -9,11 +9,7 @@ use cardano_ouroboros_network::{
     mux,
     protocols::chainsync::{ChainSyncProtocol, Mode},
 };
-use futures::{
-    executor::block_on,
-    try_join,
-};
-use std::time::Duration;
+use futures::executor::block_on;
 
 mod common;
 mod sqlite;
