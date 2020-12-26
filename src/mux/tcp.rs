@@ -78,7 +78,7 @@ impl Channel {
             trace!("started subchannel {:04x}", id);
         }
         loop {
-            let agency = proto.borrow_mut().get_agency();
+            let agency = proto.borrow_mut().agency();
             if agency == Agency::None {
                 return match Rc::try_unwrap(proto) {
                     Ok(protocol) => protocol.into_inner().result(),
@@ -109,7 +109,7 @@ impl ChannelShared {
             match subchannel.upgrade() {
                 Some(protocol) => {
                     let mut protocol = protocol.borrow_mut();
-                    if protocol.get_agency() == protocol.role() {
+                    if protocol.agency() == protocol.role() {
                         match protocol.send_data() {
                             Some(payload) => {
                                 let id = protocol.protocol_id();
@@ -144,7 +144,7 @@ impl ChannelShared {
             match subchannel.upgrade() {
                 Some(protocol) => {
                     let protocol = protocol.borrow();
-                    if protocol.get_agency() != protocol.role() {
+                    if protocol.agency() != protocol.role() {
                         // We're waiting for at least one protocol
                         should_receive = true;
                         break;

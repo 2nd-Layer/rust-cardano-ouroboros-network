@@ -180,14 +180,14 @@ impl Protocol for HandshakeProtocol {
     }
 
     fn result(&self) -> Result<String, String> {
-        self.result.clone().unwrap()
+        self.result.clone().unwrap_or(Err("no result".to_string()))
     }
 
     fn role(&self) -> Agency {
         self.role
     }
 
-    fn get_agency(&self) -> Agency {
+    fn agency(&self) -> Agency {
         return match self.state {
             State::Propose => { Agency::Client }
             State::Confirm => { Agency::Server }
@@ -195,7 +195,7 @@ impl Protocol for HandshakeProtocol {
         };
     }
 
-    fn get_state(&self) -> String {
+    fn state(&self) -> String {
         format!("{:?}", self.state)
     }
 

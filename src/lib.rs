@@ -30,10 +30,10 @@ pub trait Protocol {
     fn role(&self) -> Agency;
 
     // Tells us what agency state the protocol is in
-    fn get_agency(&self) -> Agency;
+    fn agency(&self) -> Agency;
 
     // Printable version of the state for the Protocol
-    fn get_state(&self) -> String;
+    fn state(&self) -> String;
 
     // Fetch the next piece of data this protocol wants to send, or None if the client doesn't
     // have agency.
