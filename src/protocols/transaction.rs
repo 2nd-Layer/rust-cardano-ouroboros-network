@@ -61,7 +61,7 @@ impl Protocol for TxSubmissionProtocol {
         Agency::Client
     }
 
-    fn get_agency(&self) -> Agency {
+    fn agency(&self) -> Agency {
         return match self.state {
             State::Idle => { Agency::Server }
             State::TxIdsBlocking => { Agency::Client }
@@ -72,7 +72,7 @@ impl Protocol for TxSubmissionProtocol {
         };
     }
 
-    fn get_state(&self) -> String {
+    fn state(&self) -> String {
         format!("{:?}", self.state)
     }
 

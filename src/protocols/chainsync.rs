@@ -22,12 +22,13 @@ use crate::{
     Agency,
     Protocol,
     BlockStore,
-    Notifier,
     storage::{
         msg_roll_backward::parse_msg_roll_backward,
-        msg_roll_forward::{MsgRollForward, parse_msg_roll_forward, Tip},
+        msg_roll_forward::MsgRollForward,
     },
 };
+
+use blake2b_simd::Params;
 
 #[derive(Debug)]
 pub enum State {
@@ -44,6 +45,17 @@ pub enum Mode {
     SendTip,
 }
 
+#[derive(Debug)]
+pub struct Tip {
+    pub block_number: i64,
+    pub slot_number: i64,
+    pub hash: Vec<u8>,
+}
+
+pub trait Listener {
+    fn handle_tip(&mut self, msg_roll_forward: &MsgRollForward);
+}
+
 pub struct ChainSyncProtocol {
     pub mode: Mode,
     pub last_log_time: Instant,
@@ -55,7 +67,7 @@ pub struct ChainSyncProtocol {
     pub result: Option<Result<String, String>>,
     pub is_intersect_found: bool,
     pub tip_to_intersect: Option<Tip>,
-    pub notify: Option<Box<dyn Notifier>>,
+    pub notify: Option<Box<dyn Listener>>,
 }
 
 impl Default for ChainSyncProtocol {
@@ -80,19 +92,31 @@ impl ChainSyncProtocol {
     const FIVE_SECS: Duration = Duration::from_secs(5);
 
     fn save_block(&mut self, msg_roll_forward: MsgRollForward) -> io::Result<()> {
-        self.pending_blocks.push(msg_roll_forward);
+        match self.store.as_mut() {
+            Some(store) => {
+                self.pending_blocks.push(msg_roll_forward);
 
-        if self.last_insert_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
-            match self.store.as_mut() {
-                Some(store) => {
+                if self.last_insert_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
                     store.save_block(&mut self.pending_blocks, self.network_magic)?;
+                    self.last_insert_time = Instant::now();
                 }
-                None => {}
             }
-            self.last_insert_time = Instant::now();
+            None => {}
         }
 
         Ok(())
+    }
+
+    fn notify_tip(&mut self, msg_roll_forward: &MsgRollForward) {
+        match &mut self.notify {
+            Some(listener) => listener.handle_tip(msg_roll_forward),
+            None => {}
+        }
+    }
+
+    fn jump_to_tip(&mut self, tip: Tip) {
+        self.tip_to_intersect = Some(tip);
+        self.is_intersect_found = false;
     }
 
     fn msg_find_intersect(&self, chain_blocks: Vec<(i64, Vec<u8>)>) -> Vec<u8> {
@@ -128,7 +152,7 @@ impl Protocol for ChainSyncProtocol {
         Agency::Client
     }
 
-    fn get_agency(&self) -> Agency {
+    fn agency(&self) -> Agency {
         return match self.state {
             State::Idle => { Agency::Client }
             State::Intersect => { Agency::Server }
@@ -138,7 +162,7 @@ impl Protocol for ChainSyncProtocol {
         };
     }
 
-    fn get_state(&self) -> String {
+    fn state(&self) -> String {
         format!("{:?}", self.state)
     }
 
@@ -148,28 +172,27 @@ impl Protocol for ChainSyncProtocol {
                 trace!("ChainSyncProtocol::State::Idle");
                 if !self.is_intersect_found {
                     let mut chain_blocks: Vec<(i64, Vec<u8>)> = vec![];
-                    match self.mode {
-                        Mode::Sync => {
-                            match self.store.as_mut() {
-                                Some(store) => {
-                                    let blocks = (*store).load_blocks()?;
-                                    for (i, block) in blocks.iter().enumerate() {
-                                        // all powers of 2 including 0th element 0, 2, 4, 8, 16, 32
-                                        if (i == 0) || ((i > 1) && (i & (i - 1) == 0)) {
-                                            chain_blocks.push(block.clone());
-                                        }
-                                    }
+
+                    /* Classic sync: Use blocks from store if available. */
+                    match self.store.as_mut() {
+                        Some(store) => {
+                            let blocks = (*store).load_blocks()?;
+                            for (i, block) in blocks.iter().enumerate() {
+                                // all powers of 2 including 0th element 0, 2, 4, 8, 16, 32
+                                if (i == 0) || ((i > 1) && (i & (i - 1) == 0)) {
+                                    chain_blocks.push(block.clone());
                                 }
-                                None => {}
                             }
                         }
-                        Mode::SendTip => {
-                            if self.tip_to_intersect.is_some() {
-                                let tip = self.tip_to_intersect.as_ref().unwrap();
-                                chain_blocks.push((tip.slot_number, tip.hash.clone()));
-                            }
-                        }
+                        None => {}
                     }
+
+                    /* Tip discovery: Use discovered tip to retrieve header. */
+                    if self.tip_to_intersect.is_some() {
+                        let tip = self.tip_to_intersect.as_ref().unwrap();
+                        chain_blocks.push((tip.slot_number, tip.hash.clone()));
+                    }
+
                     // Last byron block of mainnet
                     chain_blocks.push((4492799, hex::decode("f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457").unwrap()));
                     // Last byron block of testnet
@@ -238,22 +261,20 @@ impl Protocol for ChainSyncProtocol {
                                     self.last_log_time = Instant::now()
                                 }
 
-                                match self.mode {
-                                    Mode::Sync => { self.save_block(msg_roll_forward).unwrap(); }
-                                    Mode::SendTip => {
-                                        if msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash {
-                                            match &mut self.notify {
-                                                Some(notifier) => {
-                                                    notifier.notify_tip(tip, msg_roll_forward);
-                                                }
-                                                None => {}
-                                            }
-                                        } else {
-                                            self.tip_to_intersect = Some(tip);
-                                            self.is_intersect_found = false;
-                                        }
+                                if msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash {
+                                    /* Got complete tip header. */
+                                    self.notify_tip(&msg_roll_forward);
+                                } else {
+                                    match self.mode {
+                                        /* Next time get tip header. */
+                                        Mode::SendTip => self.jump_to_tip(tip),
+                                        _ => {}
                                     }
                                 }
+
+                                /* Classic sync: Store header data. */
+                                /* TODO: error handling */
+                                let _ = self.save_block(msg_roll_forward);
 
                                 self.state = State::Idle;
 
@@ -297,4 +318,122 @@ impl Protocol for ChainSyncProtocol {
             }
         }
     }
+}
+
+trait UnwrapValue {
+    fn integer(&self) -> i128;
+    fn bytes(&self) -> Vec<u8>;
+}
+
+impl UnwrapValue for Value {
+    fn integer(&self) -> i128 {
+        match self {
+            Value::Integer(integer_value) => { *integer_value }
+            _ => { panic!("not an integer!") }
+        }
+    }
+
+    fn bytes(&self) -> Vec<u8> {
+        match self {
+            Value::Bytes(bytes_vec) => { bytes_vec.clone() }
+            _ => { panic!("not a byte array!") }
+        }
+    }
+}
+
+pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> (MsgRollForward, Tip) {
+    let mut msg_roll_forward = MsgRollForward {
+        block_number: 0,
+        slot_number: 0,
+        hash: vec![],
+        prev_hash: vec![],
+        node_vkey: vec![],
+        node_vrf_vkey: vec![],
+        eta_vrf_0: vec![],
+        eta_vrf_1: vec![],
+        leader_vrf_0: vec![],
+        leader_vrf_1: vec![],
+        block_size: 0,
+        block_body_hash: vec![],
+        pool_opcert: vec![],
+        unknown_0: 0,
+        unknown_1: 0,
+        unknown_2: vec![],
+        protocol_major_version: 0,
+        protocol_minor_version: 0,
+    };
+    let mut tip = Tip {
+        block_number: 0,
+        slot_number: 0,
+        hash: vec![],
+    };
+
+    match &cbor_array[1] {
+        Value::Array(header_array) => {
+            match &header_array[1] {
+                Value::Bytes(wrapped_block_header_bytes) => {
+                    // calculate the block hash
+                    let hash = Params::new().hash_length(32).to_state().update(&*wrapped_block_header_bytes).finalize();
+                    msg_roll_forward.hash = hash.as_bytes().to_owned();
+
+                    let block_header: Value = de::from_slice(&wrapped_block_header_bytes[..]).unwrap();
+                    match block_header {
+                        Value::Array(block_header_array) => {
+                            match &block_header_array[0] {
+                                Value::Array(block_header_array_inner) => {
+                                    msg_roll_forward.block_number = block_header_array_inner[0].integer() as i64;
+                                    msg_roll_forward.slot_number = block_header_array_inner[1].integer() as i64;
+                                    msg_roll_forward.prev_hash.append(&mut block_header_array_inner[2].bytes());
+                                    msg_roll_forward.node_vkey.append(&mut block_header_array_inner[3].bytes());
+                                    msg_roll_forward.node_vrf_vkey.append(&mut block_header_array_inner[4].bytes());
+                                    match &block_header_array_inner[5] {
+                                        Value::Array(nonce_array) => {
+                                            msg_roll_forward.eta_vrf_0.append(&mut nonce_array[0].bytes());
+                                            msg_roll_forward.eta_vrf_1.append(&mut nonce_array[1].bytes());
+                                        }
+                                        _ => { error!("invalid cbor!") }
+                                    }
+                                    match &block_header_array_inner[6] {
+                                        Value::Array(leader_array) => {
+                                            msg_roll_forward.leader_vrf_0.append(&mut leader_array[0].bytes());
+                                            msg_roll_forward.leader_vrf_1.append(&mut leader_array[1].bytes());
+                                        }
+                                        _ => { error!("invalid cbor!") }
+                                    }
+                                    msg_roll_forward.block_size = block_header_array_inner[7].integer() as i64;
+                                    msg_roll_forward.block_body_hash.append(&mut block_header_array_inner[8].bytes());
+                                    msg_roll_forward.pool_opcert.append(&mut block_header_array_inner[9].bytes());
+                                    msg_roll_forward.unknown_0 = block_header_array_inner[10].integer() as i64;
+                                    msg_roll_forward.unknown_1 = block_header_array_inner[11].integer() as i64;
+                                    msg_roll_forward.unknown_2.append(&mut block_header_array_inner[12].bytes());
+                                    msg_roll_forward.protocol_major_version = block_header_array_inner[13].integer() as i64;
+                                    msg_roll_forward.protocol_minor_version = block_header_array_inner[14].integer() as i64;
+                                }
+                                _ => { error!("invalid cbor!") }
+                            }
+                        }
+                        _ => { error!("invalid cbor!") }
+                    }
+                }
+                _ => { error!("invalid cbor!") }
+            }
+        }
+        _ => { error!("invalid cbor!") }
+    }
+
+    match &cbor_array[2] {
+        Value::Array(tip_array) => {
+            match &tip_array[0] {
+                Value::Array(tip_info_array) => {
+                    tip.slot_number = tip_info_array[0].integer() as i64;
+                    tip.hash.append(&mut tip_info_array[1].bytes());
+                }
+                _ => { error!("invalid cbor!") }
+            }
+            tip.block_number = tip_array[1].integer() as i64;
+        }
+        _ => { error!("invalid cbor!") }
+    }
+
+    (msg_roll_forward, tip)
 }

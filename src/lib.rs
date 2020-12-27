@@ -16,7 +16,7 @@ pub mod storage;
 use std::io;
 
 use crate::{
-    storage::msg_roll_forward::{MsgRollForward, Tip},
+    storage::msg_roll_forward::MsgRollForward,
 };
 
 pub trait Protocol {
@@ -30,10 +30,10 @@ pub trait Protocol {
     fn role(&self) -> Agency;
 
     // Tells us what agency state the protocol is in
-    fn get_agency(&self) -> Agency;
+    fn agency(&self) -> Agency;
 
     // Printable version of the state for the Protocol
-    fn get_state(&self) -> String;
+    fn state(&self) -> String;
 
     // Fetch the next piece of data this protocol wants to send, or None if the client doesn't
     // have agency.
@@ -43,7 +43,7 @@ pub trait Protocol {
     fn receive_data(&mut self, data: Vec<u8>);
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Agency {
     // Client continues
     Client,
@@ -59,5 +59,5 @@ pub trait BlockStore {
 }
 
 pub trait Notifier {
-    fn notify_tip(&mut self, tip: Tip, msg_roll_forward: MsgRollForward);
+    fn notify_tip(&mut self, msg_roll_forward: MsgRollForward);
 }
