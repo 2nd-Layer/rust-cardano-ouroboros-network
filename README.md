@@ -49,7 +49,7 @@ There are two documents which describe various levels of the networking layer of
   - [Haskell Cardano Node Ouroboros Network Framework](https://github.com/input-output-hk/ouroboros-network/tree/master/ouroboros-network-framework)
   - [Haskell Cardano Node Ouroboros Network](https://github.com/input-output-hk/ouroboros-network/tree/master/ouroboros-network)
   - [~~Rust Sub-set of Cardano Node Ouroboros Network Protocols~~](https://github.com/AndrewWestberg/cncli/tree/develop/src/nodeclient/protocols)
-    - [CNCLI now uses this Rust crate](https://github.com/AndrewWestberg/cncli) for networking layer
+    - [CNCLI](https://github.com/AndrewWestberg/cncli) now uses this Rust crate for networking layer
 
 # License
 
