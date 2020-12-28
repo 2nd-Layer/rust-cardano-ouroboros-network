@@ -1,5 +1,5 @@
 use cardano_ouroboros_network::{
-    storage::msg_roll_forward::MsgRollForward,
+    BlockHeader,
     protocols::chainsync::Listener,
 };
 use std::path::PathBuf;
@@ -58,7 +58,7 @@ struct PooltoolData {
 }
 
 impl Listener for PoolTool {
-    fn handle_tip(&mut self, header: &MsgRollForward) {
+    fn handle_tip(&mut self, header: &BlockHeader) {
         if self.last_node_version_time.elapsed() > Duration::from_secs(3600) {
             // Our node version is outdated. Make a call to update it.
             let output = Command::new(&self.cardano_node_path)
