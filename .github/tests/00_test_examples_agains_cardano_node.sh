@@ -23,18 +23,19 @@ if ! docker pull 2ndlayer/centos-cardano-node:${cardanoNodeVersion} >> /dev/null
 else
   TESTNET_MAGIC=${RANDOM}
   if docker run 2ndlayer/centos-cardano-node:${cardanoNodeVersion} \
-    cardano-cli genesis create-staked \
-      --genesis-dir testnet \
-      --gen-genesis-keys 2 \
-      --gen-utxo-keys 1 \
-      --gen-stake-delegs 2 \
-      --supply 100000 \
-      --supply-delegated 70000 \
-      --gen-pools 2 \
-      --testnet-magic ${TESTNET_MAGIC}; 
+      cardano-cli genesis create-staked \
+        --genesis-dir testnet \
+        --gen-genesis-keys 2 \
+        --gen-utxo-keys 1 \
+        --gen-stake-delegs 2 \
+        --supply 100000 \
+        --supply-delegated 70000 \
+        --gen-pools 2 \
+        --testnet-magic ${TESTNET_MAGIC}; 
     then
       echo "INFO: New testing Shelley environment created!"
     else
       echo "ERROR: Failed to create testing Shelley environment!"
+      exit 0
   fi
 fi
