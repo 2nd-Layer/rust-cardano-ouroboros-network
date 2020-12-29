@@ -10,7 +10,7 @@ elif ! which docker >> /dev/null 2>&1; then
 fi
 
 GH_JSON=$(curl --proto '=https' --tlsv1.2 -sSf "https://api.github.com/repos/input-output-hk/cardano-node/releases/latest")
-if [ $(jq -r .prerelease <<< ${GH_JSON} ) == false ]; then
+if [ $(jq -r .prerelease <<< ${GH_JSON}) == false ]; then
   cardanoNodeVersionTag=$(jq -r .tag_name <<< ${GH_JSON})
   echo "Discovered Cardano Node ${cardanoNodeVersionTag}"
   cardanoNodeVersion=${cardanoNodeVersionTag}
