@@ -22,10 +22,7 @@ use crate::{
     Agency,
     Protocol,
     BlockStore,
-    storage::{
-        msg_roll_backward::parse_msg_roll_backward,
-        msg_roll_forward::MsgRollForward,
-    },
+    BlockHeader,
 };
 
 use blake2b_simd::Params;
@@ -53,7 +50,7 @@ pub struct Tip {
 }
 
 pub trait Listener {
-    fn handle_tip(&mut self, msg_roll_forward: &MsgRollForward);
+    fn handle_tip(&mut self, msg_roll_forward: &BlockHeader);
 }
 
 pub struct ChainSyncProtocol {
@@ -62,7 +59,7 @@ pub struct ChainSyncProtocol {
     pub last_insert_time: Instant,
     pub store: Option<Box<dyn BlockStore>>,
     pub network_magic: u32,
-    pub pending_blocks: Vec<MsgRollForward>,
+    pub pending_blocks: Vec<BlockHeader>,
     pub state: State,
     pub result: Option<Result<String, String>>,
     pub is_intersect_found: bool,
@@ -91,7 +88,7 @@ impl Default for ChainSyncProtocol {
 impl ChainSyncProtocol {
     const FIVE_SECS: Duration = Duration::from_secs(5);
 
-    fn save_block(&mut self, msg_roll_forward: MsgRollForward) -> io::Result<()> {
+    fn save_block(&mut self, msg_roll_forward: BlockHeader) -> io::Result<()> {
         match self.store.as_mut() {
             Some(store) => {
                 self.pending_blocks.push(msg_roll_forward);
@@ -107,7 +104,7 @@ impl ChainSyncProtocol {
         Ok(())
     }
 
-    fn notify_tip(&mut self, msg_roll_forward: &MsgRollForward) {
+    fn notify_tip(&mut self, msg_roll_forward: &BlockHeader) {
         match &mut self.notify {
             Some(listener) => listener.handle_tip(msg_roll_forward),
             None => {}
@@ -344,8 +341,8 @@ impl UnwrapValue for Value {
     }
 }
 
-pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(MsgRollForward, Tip)> {
-    let mut msg_roll_forward = MsgRollForward {
+pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(BlockHeader, Tip)> {
+    let mut msg_roll_forward = BlockHeader {
         block_number: 0,
         slot_number: 0,
         hash: vec![],
@@ -463,4 +460,19 @@ pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(MsgRollForward,
     }
 
     Some((msg_roll_forward, tip))
+}
+
+pub fn parse_msg_roll_backward(cbor_array: Vec<Value>) -> i64 {
+    let mut slot: i64 = 0;
+    match &cbor_array[1] {
+        Value::Array(block) => {
+            match block[0] {
+                Value::Integer(parsed_slot) => { slot = parsed_slot as i64 }
+                _ => { error!("invalid cbor"); }
+            }
+        }
+        _ => { error!("invalid cbor"); }
+    }
+
+    slot
 }
