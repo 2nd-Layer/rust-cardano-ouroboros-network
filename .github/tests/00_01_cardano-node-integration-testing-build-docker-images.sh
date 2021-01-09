@@ -32,30 +32,22 @@ elif TESTNET_MAGIC=${RANDOM}; then
       --supply 100000 \
       --testnet-magic ${TESTNET_MAGIC};
     then
-      if IMAGE_ID=$(docker ps -aq | head -n 1); then
-        if docker commit ${IMAGE_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}; then
-          echo "INFO: Initial testing Shelley environment created!"
-          if docker commit ${IMAGE_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}; then
-            echo "INFO: New testing Shelley environment created!"
-            docker \
-              run local/cardano-node-shelley-testnet:${cardanoNodeVersion} \
-              bash <<< "cat testnet/genesis.spec.json | jq .epochLength=300 > testnet/genesis.spec.json.tmp"
-            IMAGE_ID=$(docker ps -aq | head -n 1)
-            docker commit ${IMAGE_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}
-            docker \
-                run local/cardano-node-shelley-testnet:${cardanoNodeVersion} \
-                bash <<< "cat testnet/genesis.spec.json \
-                | jq .protocolParams.decentralisationParam=0 > testnet/genesis.spec.json.tmp"
-            IMAGE_ID=$(docker ps -aq | head -n 1)
-            docker commit ${IMAGE_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}
-            docker \
-              run local/cardano-node-shelley-testnet:${cardanoNodeVersion} \
-              bash <<< "mv testnet/genesis.spec.json.tmp testnet/genesis.spec.json"
-            IMAGE_ID=$(docker ps -aq | head -n 1)
-            docker commit ${IMAGE_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}
+      if CONTAINER_ID=$(docker ps -aq | head -n 1); then
+        echo "INFO: Initial testing Shelley environment created!"
+        docker cp \
+          ${PWD}/.github/tests/00_02_cardano-node-integration-testing-update-genesis.sh \
+          ${CONTAINER_ID}:/usr/local/bin/00_02_cardano-node-integration-testing-update-genesis.sh
+        echo "INFO: Testnet INIT scripts added!"
+        if CONTAINER_ID=$(docker ps -aq | head -n 1); then
+          if docker commit ${CONTAINER_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}; then
             echo "DEBUG: Image name: local/cardano-node-shelley-testnet:${cardanoNodeVersion}"
           fi
         fi
+        docker run \
+         local/cardano-node-shelley-testnet:${cardanoNodeVersion} \
+         bash /usr/local/bin/00_02_cardano-node-integration-testing-update-genesis.sh
+        CONTAINER_ID=$(docker ps -aq | head -n 1)
+        docker commit ${CONTAINER_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}
       else
         echo "ERROR: Failed to create testing Shelley image!"
       fi
