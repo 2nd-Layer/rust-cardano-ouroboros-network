@@ -14,4 +14,4 @@ jobs:
     - name: Prepare Git environment
       uses: actions/checkout@v2
     - name: Build Cardano Node Docker Images
-    - run: .github/tests/00_01_cardano-node-integration-testing-build-docker-images.sh
+      run: .github/tests/00_01_cardano-node-integration-testing-build-docker-images.sh
