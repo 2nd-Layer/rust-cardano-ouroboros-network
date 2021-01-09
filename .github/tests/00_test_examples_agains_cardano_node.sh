@@ -23,17 +23,39 @@ if ! docker pull 2ndlayer/centos-cardano-node:${cardanoNodeVersion} >> /dev/null
 else
   TESTNET_MAGIC=${RANDOM}
   if docker run 2ndlayer/centos-cardano-node:${cardanoNodeVersion} \
-      cardano-cli genesis create-staked \
+      cardano-cli genesis create \
         --genesis-dir testnet \
-        --gen-genesis-keys 2 \
-        --gen-utxo-keys 1 \
-        --gen-stake-delegs 2 \
+        --gen-utxo-keys 3 \
         --supply 100000 \
-        --supply-delegated 70000 \
-        --gen-pools 2 \
         --testnet-magic ${TESTNET_MAGIC}; 
     then
-      echo "INFO: New testing Shelley environment created!"
+      if IMAGE_ID=$(docker ps -aq | head -n 1); then
+        if docker commit ${IMAGE_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}; then
+          echo "INFO: Initial testing Shelley environment created!"
+        fi
+      if docker commit ${IMAGE_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}; then
+        echo "INFO: New testing Shelley environment created!"
+        docker \
+          run local/cardano-node-shelley-testnet:${cardanoNodeVersion} \
+          bash <<< "cat testnet/genesis.spec.json | jq .epochLength=300 > testnet/genesis.spec.json.tmp"
+        IMAGE_ID=$(docker ps -aq | head -n 1)
+        docker commit ${IMAGE_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}
+        docker \
+            run local/cardano-node-shelley-testnet:${cardanoNodeVersion} \
+            bash <<< "cat testnet/genesis.spec.json \
+             | jq .protocolParams.decentralisationParam=0 > testnet/genesis.spec.json.tmp"
+        IMAGE_ID=$(docker ps -aq | head -n 1)
+        docker commit ${IMAGE_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}
+        docker \
+          run local/cardano-node-shelley-testnet:${cardanoNodeVersion} \
+          bash <<< "mv testnet/genesis.spec.json.tmp testnet/genesis.spec.json"
+        IMAGE_ID=$(docker ps -aq | head -n 1)
+        docker commit ${IMAGE_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}
+        echo "DEBUG: Image name: local/cardano-node-shelley-testnet:${cardanoNodeVersion}"
+      fi
+      else
+        echo "ERROR: Failed to create testing Shelley image!"
+      fi
     else
       echo "ERROR: Failed to create testing Shelley environment!"
       exit 0
