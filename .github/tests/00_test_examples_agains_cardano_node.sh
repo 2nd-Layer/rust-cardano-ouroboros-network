@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+
+#  © 2020 PERLUR Group
+#
+# SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
+
 if ! which jq >> /dev/null 2>&1; then
   echo "ERROR: jq binary is missing!"
   exit 0
