@@ -10,8 +10,6 @@ echo "PWD:" $(pwd)
 
 TESTNET_MAGIC=${RANDOM}
 
-echo "INFO: Initial testing Shelley environment created!"
-
 if cardano-cli genesis create \
   --genesis-dir testnet \
   --gen-utxo-keys 3 \

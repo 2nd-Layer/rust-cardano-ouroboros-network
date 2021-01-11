@@ -39,7 +39,7 @@ else TESTNET_MAGIC=${RANDOM}
   then
     CONTAINER_ID=$(docker ps -aq | head -n 1)
     if docker commit ${CONTAINER_ID} local/cardano-node-shelley-testnet:${cardanoNodeVersion}; then
-      echo "INFO: Initial testing Shelley environment created!"
+      echo "INFO: Initial testing Shelley environment commited!"
     fi
     if docker run \
       local/cardano-node-shelley-testnet:${cardanoNodeVersion} \
