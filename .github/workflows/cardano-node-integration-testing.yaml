@@ -13,5 +13,5 @@ jobs:
     steps:
     - name: Prepare Git environment
       uses: actions/checkout@v2
-    - name: Build Cardano Node Docker Images
-      run: bash .github/tests/00-cardano-node-integration-tests/prepare-cardano-node-testnet-environment.sh
+    - name: Build Cardano Node  Shelley Testnet Docker Images
+      run: bash .github/tests/00-cardano-node-integration-tests/prepare-cardano-node-shelley-testnet-environment.sh
