@@ -8,9 +8,13 @@ set -e
 if ! which jq >> /dev/null 2>&1; then
   echo "ERROR: jq binary is missing!"
   exit 0
-elif ! which docker >> /dev/null 2>&1; then
+fi
+if ! which docker >> /dev/null 2>&1; then
   echo "ERROR: docker binary is missing!"
   exit 0
+fi
+if ! cd ${PWD}/.github/tests/00-cardano-node-integration-tests/; then
+  echo "ERROR: Failed to switch to cardano-node-integration-tests directory!"
 fi
 
 GH_JSON=$(curl --proto '=https' --tlsv1.2 -sSf "https://api.github.com/repos/input-output-hk/cardano-node/releases/latest")
@@ -21,14 +25,13 @@ if [ $(jq -r .prerelease <<< ${GH_JSON}) == false ]; then
 fi
 
 sed -i "s/<cardanoNodeVersionTag>/${cardanoNodeVersionTag}/" \
-  ${PWD}/.github/tests/00-cardano-node-integration-tests/Dockerfile
+  ${PWD}/Dockerfile
 
 echo "Pull Docker image from Docker Hub"
 if ! docker pull 2ndlayer/centos-cardano-node:${cardanoNodeVersion} >> /dev/null 2>&1; then
   echo "ERROR: Docker image pull failed!"
   exit 0
 else TESTNET_MAGIC=${RANDOM}
-  cd ${PWD}/.github/tests/00-cardano-node-integration-tests/
   docker build -t local/cardano-node-shelley-testnet:${cardanoNodeVersion} ./
 
   if docker run local/cardano-node-shelley-testnet:${cardanoNodeVersion} \
