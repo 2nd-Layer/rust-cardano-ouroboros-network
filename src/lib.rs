@@ -53,7 +53,7 @@ pub trait BlockStore {
     fn load_blocks(&mut self) -> Option<Vec<(i64, Vec<u8>)>>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockHeader {
     pub block_number: i64,
     pub slot_number: i64,
