@@ -88,12 +88,12 @@ impl Default for ChainSyncProtocol {
 impl ChainSyncProtocol {
     const FIVE_SECS: Duration = Duration::from_secs(5);
 
-    fn save_block(&mut self, msg_roll_forward: BlockHeader) -> io::Result<()> {
+    fn save_block(&mut self, msg_roll_forward: &BlockHeader, is_tip: bool) -> io::Result<()> {
         match self.store.as_mut() {
             Some(store) => {
-                self.pending_blocks.push(msg_roll_forward);
+                self.pending_blocks.push((*msg_roll_forward).clone());
 
-                if self.last_insert_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
+                if is_tip || self.last_insert_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
                     store.save_block(&mut self.pending_blocks, self.network_magic)?;
                     self.last_insert_time = Instant::now();
                 }
@@ -251,15 +251,20 @@ impl Protocol for ChainSyncProtocol {
                                 match parse_msg_roll_forward(cbor_array) {
                                     None => { warn!("Probably a byron block. skipping...") }
                                     Some((msg_roll_forward, tip)) => {
+                                        let is_tip = msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash;
                                         trace!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
-                                        if self.last_log_time.elapsed().as_millis() > 5_000 {
+                                        if is_tip || self.last_log_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
                                             if self.mode == Mode::Sync {
                                                 info!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
                                             }
                                             self.last_log_time = Instant::now()
                                         }
 
-                                        if msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash {
+                                        /* Classic sync: Store header data. */
+                                        /* TODO: error handling */
+                                        let _ = self.save_block(&msg_roll_forward, is_tip);
+
+                                        if is_tip {
                                             /* Got complete tip header. */
                                             self.notify_tip(&msg_roll_forward);
                                         } else {
@@ -269,10 +274,6 @@ impl Protocol for ChainSyncProtocol {
                                                 _ => {}
                                             }
                                         }
-
-                                        /* Classic sync: Store header data. */
-                                        /* TODO: error handling */
-                                        let _ = self.save_block(msg_roll_forward);
                                     }
                                 }
 
