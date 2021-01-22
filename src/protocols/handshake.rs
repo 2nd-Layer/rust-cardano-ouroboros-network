@@ -21,7 +21,8 @@ const PROTOCOL_VERSION_2: i128 = 0x02;
 const PROTOCOL_VERSION_SHELLEY: i128 = 0x03;
 const PROTOCOL_VERSION_SHELLEY2: i128 = 0x04;
 const PROTOCOL_VERSION_ALLEGRA: i128 = 0x05;
-const MIN_PROTOCOL_VERSION: i128 = PROTOCOL_VERSION_ALLEGRA;
+const PROTOCOL_VERSION_MARY: i128 = 0x06;
+const MIN_PROTOCOL_VERSION: i128 = PROTOCOL_VERSION_MARY;
 
 const MSG_ACCEPT_VERSION_MSG_ID: i128 = 1;
 
@@ -68,6 +69,7 @@ impl HandshakeProtocol {
         payload_map.insert(Value::Integer(PROTOCOL_VERSION_SHELLEY), Value::Integer(network_magic as i128));
         payload_map.insert(Value::Integer(PROTOCOL_VERSION_SHELLEY2), Value::Array(vec![Value::Integer(network_magic as i128), Value::Bool(false)]));
         payload_map.insert(Value::Integer(PROTOCOL_VERSION_ALLEGRA), Value::Array(vec![Value::Integer(network_magic as i128), Value::Bool(false)]));
+        payload_map.insert(Value::Integer(PROTOCOL_VERSION_MARY), Value::Array(vec![Value::Integer(network_magic as i128), Value::Bool(false)]));
 
         let message = Value::Array(vec![
             Value::Integer(0), // message_id
