@@ -194,6 +194,8 @@ impl Protocol for ChainSyncProtocol {
                     chain_blocks.push((4492799, hex::decode("f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457").unwrap()));
                     // Last byron block of testnet
                     chain_blocks.push((1598399, hex::decode("7e16781b40ebf8b6da18f7b5e8ade855d6738095ef2f1c58c77e88b6e45997a4").unwrap()));
+                    // Last byron block of guild
+                    chain_blocks.push((360, hex::decode("5cf6594ecc831d859bbe17bf0a95fe9a95ae21f4bd7121522851ed7720d207b3").unwrap()));
 
                     trace!("intersect");
                     let payload = self.msg_find_intersect(chain_blocks);
@@ -393,7 +395,7 @@ pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(BlockHeader, Ti
                                             msg_roll_forward.eta_vrf_1.append(&mut nonce_array[1].bytes());
                                         }
                                         _ => {
-                                            warn!("invalid cbor!");
+                                            warn!("invalid cbor! code: 340");
                                             return None
                                         }
                                     }
@@ -403,7 +405,7 @@ pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(BlockHeader, Ti
                                             msg_roll_forward.leader_vrf_1.append(&mut leader_array[1].bytes());
                                         }
                                         _ => {
-                                            warn!("invalid cbor!");
+                                            warn!("invalid cbor! code: 341");
                                             return None
                                         }
                                     }
@@ -417,25 +419,25 @@ pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(BlockHeader, Ti
                                     msg_roll_forward.protocol_minor_version = block_header_array_inner[14].integer() as i64;
                                 }
                                 _ => {
-                                    warn!("invalid cbor!");
+                                    warn!("invalid cbor! code: 342");
                                     return None
                                 }
                             }
                         }
                         _ => {
-                            warn!("invalid cbor!");
+                            warn!("invalid cbor! code: 343");
                             return None
                         }
                     }
                 }
                 _ => {
-                    warn!("invalid cbor!");
+                    warn!("invalid cbor! code: 344");
                     return None
                 }
             }
         }
         _ => {
-            warn!("invalid cbor!");
+            warn!("invalid cbor! code: 345");
             return None
         }
     }
@@ -448,14 +450,14 @@ pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(BlockHeader, Ti
                     tip.hash.append(&mut tip_info_array[1].bytes());
                 }
                 _ => {
-                    warn!("invalid cbor!");
+                    warn!("invalid cbor! code: 346");
                     return None
                 }
             }
             tip.block_number = tip_array[1].integer() as i64;
         }
         _ => {
-            warn!("invalid cbor!");
+            warn!("invalid cbor! code: 347");
             return None
         }
     }
@@ -467,9 +469,11 @@ pub fn parse_msg_roll_backward(cbor_array: Vec<Value>) -> i64 {
     let mut slot: i64 = 0;
     match &cbor_array[1] {
         Value::Array(block) => {
-            match block[0] {
-                Value::Integer(parsed_slot) => { slot = parsed_slot as i64 }
-                _ => { error!("invalid cbor"); }
+            if block.len() > 0 {
+                match block[0] {
+                    Value::Integer(parsed_slot) => { slot = parsed_slot as i64 }
+                    _ => { error!("invalid cbor"); }
+                }
             }
         }
         _ => { error!("invalid cbor"); }
