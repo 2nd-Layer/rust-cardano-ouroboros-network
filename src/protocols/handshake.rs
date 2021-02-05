@@ -12,7 +12,7 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 use std::collections::BTreeMap;
 
 use log::debug;
-use serde_cbor::{de, ser, Value};
+use serde_cbor::{de, ser, Value, Value::*};
 
 use crate::{Agency, Protocol};
 
@@ -25,7 +25,7 @@ const MIN_PROTOCOL_VERSION: i128 = PROTOCOL_VERSION_ALLEGRA;
 
 const MSG_ACCEPT_VERSION_MSG_ID: i128 = 1;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum State {
     Propose,
     Confirm,
@@ -209,10 +209,18 @@ impl Protocol for HandshakeProtocol {
             }
             State::Confirm => {
                 /* TODO: [stub] implement proper negotiation */
-                let payload = hex::decode("830105821a2d964a09f4").unwrap();
-                self.result = Some(Ok("[stub] confirmed".to_string()));
+                self.result = Some(Ok("confirmed".to_string()));
                 self.state = State::Done;
-                Some(payload)
+                Some(ser::to_vec(
+                    &Array(vec![
+                           Integer(1),
+                           Integer(5),
+                           Array(vec![
+                               Integer(self.network_magic.into()),
+                               Bool(false),
+                           ]),
+                    ])
+                ).unwrap())
             }
             State::Done => panic!("unexpected send"),
         }
@@ -232,5 +240,69 @@ impl Protocol for HandshakeProtocol {
             }
             State::Done => panic!("unexpected recv"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::assert_eq;
+
+    fn propose(magic: u32) -> Vec<u8> {
+        ser::to_vec(
+            &Array(vec![
+                Integer(0),
+                Map(vec![
+                    (Integer(1), magic.into()),
+                    (Integer(2), magic.into()),
+                    (Integer(3), magic.into()),
+                    (Integer(4), Array(vec![
+                        Integer(magic.into()),
+                        Bool(false),
+                    ])),
+                    (Integer(5), Array(vec![
+                        Integer(magic.into()),
+                        Bool(false),
+                    ])),
+                ].into_iter().collect::<BTreeMap<Value,Value>>()),
+            ])
+        ).unwrap()
+    }
+
+    fn confirm(magic: u32) -> Vec<u8> {
+        ser::to_vec(
+            &Array(vec![
+                   Integer(1),
+                   Integer(5),
+                   Array(vec![
+                       Integer(magic.into()),
+                       Bool(false),
+                   ]),
+            ]),
+        ).unwrap()
+    }
+
+    #[test]
+    fn handshake_client_works() {
+        let magic = 0xdddddddd;
+        let mut client = HandshakeProtocol::new(magic);
+        assert_eq!(client.state, State::Propose);
+        let data = client.send_data().unwrap();
+        assert_eq!(client.state, State::Confirm);
+        assert_eq!(data, propose(magic));
+        client.receive_data(confirm(magic));
+        assert_eq!(client.state, State::Done);
+    }
+
+    #[test]
+    fn handshake_server_works() {
+        let magic = 0xdddddddd;
+        let mut server = HandshakeProtocol::expect(magic);
+        assert_eq!(server.state, State::Propose);
+        server.receive_data(propose(magic));
+        assert_eq!(server.state, State::Confirm);
+        let data = server.send_data().unwrap();
+        assert_eq!(server.state, State::Done);
+        assert_eq!(data, confirm(magic));
     }
 }
