@@ -16,7 +16,7 @@ use std::{
 };
 
 use log::{debug, error, info, trace, warn};
-use serde_cbor::{de, ser, Value};
+use serde_cbor::{de, Deserializer, ser, Value};
 
 use crate::{
     Agency,
@@ -238,91 +238,95 @@ impl Protocol for ChainSyncProtocol {
         //msgIntersectNotFound   = [6, tip]
         //chainSyncMsgDone       = [7]
 
-        match de::from_slice(&data[..]) {
-            Ok(cbor_value) => {
-                match cbor_value {
-                    Value::Array(cbor_array) => {
-                        match cbor_array[0] {
-                            Value::Integer(message_id) => {
-                                match message_id {
-                                    1 => {
-                                        // Server wants us to wait a bit until it gets a new block
-                                        self.state = State::MustReply;
-                                    }
-                                    2 => {
-                                        // MsgRollForward
-                                        match parse_msg_roll_forward(cbor_array) {
-                                            None => { warn!("Probably a byron block. skipping...") }
-                                            Some((msg_roll_forward, tip)) => {
-                                                let is_tip = msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash;
-                                                trace!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
-                                                if is_tip || self.last_log_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
-                                                    if self.mode == Mode::Sync {
-                                                        info!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
+        let cbor_iter = Deserializer::from_slice(&data[..]).into_iter::<Value>();
+
+        for cbor_result in cbor_iter {
+            match cbor_result {
+                Ok(cbor_value) => {
+                    match cbor_value {
+                        Value::Array(cbor_array) => {
+                            match cbor_array[0] {
+                                Value::Integer(message_id) => {
+                                    match message_id {
+                                        1 => {
+                                            // Server wants us to wait a bit until it gets a new block
+                                            self.state = State::MustReply;
+                                        }
+                                        2 => {
+                                            // MsgRollForward
+                                            match parse_msg_roll_forward(cbor_array) {
+                                                None => { warn!("Probably a byron block. skipping...") }
+                                                Some((msg_roll_forward, tip)) => {
+                                                    let is_tip = msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash;
+                                                    trace!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
+                                                    if is_tip || self.last_log_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
+                                                        if self.mode == Mode::Sync {
+                                                            info!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
+                                                        }
+                                                        self.last_log_time = Instant::now()
                                                     }
-                                                    self.last_log_time = Instant::now()
-                                                }
 
-                                                /* Classic sync: Store header data. */
-                                                /* TODO: error handling */
-                                                let _ = self.save_block(&msg_roll_forward, is_tip);
+                                                    /* Classic sync: Store header data. */
+                                                    /* TODO: error handling */
+                                                    let _ = self.save_block(&msg_roll_forward, is_tip);
 
-                                                if is_tip {
-                                                    /* Got complete tip header. */
-                                                    self.notify_tip(&msg_roll_forward);
-                                                } else {
-                                                    match self.mode {
-                                                        /* Next time get tip header. */
-                                                        Mode::SendTip => self.jump_to_tip(tip),
-                                                        _ => {}
+                                                    if is_tip {
+                                                        /* Got complete tip header. */
+                                                        self.notify_tip(&msg_roll_forward);
+                                                    } else {
+                                                        match self.mode {
+                                                            /* Next time get tip header. */
+                                                            Mode::SendTip => self.jump_to_tip(tip),
+                                                            _ => {}
+                                                        }
                                                     }
                                                 }
                                             }
+
+                                            self.state = State::Idle;
+
+                                            // testing only so we sync only a single block
+                                            // self.state = State::Done;
+                                            // self.result = Some(Ok(String::from("Done")))
                                         }
-
-                                        self.state = State::Idle;
-
-                                        // testing only so we sync only a single block
-                                        // self.state = State::Done;
-                                        // self.result = Some(Ok(String::from("Done")))
-                                    }
-                                    3 => {
-                                        // MsgRollBackward
-                                        let slot = parse_msg_roll_backward(cbor_array);
-                                        warn!("rollback to slot: {}", slot);
-                                        self.state = State::Idle;
-                                    }
-                                    5 => {
-                                        debug!("MsgIntersectFound: {:?}", cbor_array);
-                                        self.is_intersect_found = true;
-                                        self.state = State::Idle;
-                                    }
-                                    6 => {
-                                        warn!("MsgIntersectNotFound: {:?}", cbor_array);
-                                        self.is_intersect_found = true; // should start syncing at first byron block. We will just skip all byron blocks.
-                                        self.state = State::Idle;
-                                    }
-                                    7 => {
-                                        warn!("MsgDone: {:?}", cbor_array);
-                                        self.state = State::Done;
-                                        self.result = Some(Ok(String::from("Done")))
-                                    }
-                                    _ => {
-                                        error!("Got unexpected message_id: {}", message_id);
+                                        3 => {
+                                            // MsgRollBackward
+                                            let slot = parse_msg_roll_backward(cbor_array);
+                                            warn!("rollback to slot: {}", slot);
+                                            self.state = State::Idle;
+                                        }
+                                        5 => {
+                                            debug!("MsgIntersectFound: {:?}", cbor_array);
+                                            self.is_intersect_found = true;
+                                            self.state = State::Idle;
+                                        }
+                                        6 => {
+                                            warn!("MsgIntersectNotFound: {:?}", cbor_array);
+                                            self.is_intersect_found = true; // should start syncing at first byron block. We will just skip all byron blocks.
+                                            self.state = State::Idle;
+                                        }
+                                        7 => {
+                                            warn!("MsgDone: {:?}", cbor_array);
+                                            self.state = State::Done;
+                                            self.result = Some(Ok(String::from("Done")))
+                                        }
+                                        _ => {
+                                            error!("Got unexpected message_id: {}", message_id);
+                                        }
                                     }
                                 }
-                            }
-                            _ => {
-                                error!("Unexpected cbor!")
+                                _ => {
+                                    error!("Unexpected cbor!")
+                                }
                             }
                         }
-                    }
-                    _ => {
-                        error!("Unexpected cbor!")
+                        _ => {
+                            error!("Unexpected cbor!")
+                        }
                     }
                 }
+                Err(err) => { error!("cbor decode error!: {}, hex: {}", err, hex::encode(&data)) }
             }
-            Err(err) => { error!("cbor decode error!: {}, hex: {}", err, hex::encode(&data)) }
         }
     }
 }
