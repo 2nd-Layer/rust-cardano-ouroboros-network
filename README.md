@@ -3,6 +3,10 @@ This crate implements the networking layer for the Ouroboros blockchain protocol
 
 # Contributing
 
+## [Cardano Project Catalyst](https://cardano.ideascale.com/a/home)
+We regularly apply for funding from individual funds of [Cardano Project Catalyst](https://cardano.ideascale.com/a/home), below you can see our history of applications for funding:
+  - [ ] [Fund 3 - Ouroboros Rust Networking Crate](https://cardano.ideascale.com/a/dtd/Ouroboros-Networking-Rust-Crate/333161-48088) is currently undergoing voting
+
 ## Submit Pull Requests
 This repository implements a [GitHub Action](https://github.com/aslafy-z/conventional-pr-title-action) to make sure that the PR name follows [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). Make sure your PRs follow the referred specification to pass Continuous Integration testing. 
 
