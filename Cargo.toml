@@ -1,7 +1,7 @@
 [package]
 name = "cardano_ouroboros_network"
 license = "GPL-3.0 OR LGPL-3.0-only"
-version = "0.2.0-dev"
+version = "0.2.0"
 authors = [
   "Mark Stopka <mark.stopka@perlur.cloud>",
   "Pavel Šimerda <pavel.simerda@perlur.cloud>",
