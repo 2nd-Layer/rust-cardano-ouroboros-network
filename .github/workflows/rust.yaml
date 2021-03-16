@@ -35,6 +35,7 @@ jobs:
     - run: echo Done!
 
   publish:
+    name: Publish tagged release on crates.io
     if: github.event == 'release'
     needs:
       - build_success
