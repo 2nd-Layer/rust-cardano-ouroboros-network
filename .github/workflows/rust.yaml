@@ -36,7 +36,7 @@ jobs:
 
   publish:
     name: Publish tagged release on crates.io
-    if: github.event == 'release'
+    if: github.event_name == 'release' && github.event.action == 'created'
     needs:
       - build_success
     runs-on: ubuntu-latest
