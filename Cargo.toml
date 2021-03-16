@@ -4,7 +4,8 @@ license = "GPL-3.0 OR LGPL-3.0-only"
 version = "0.2.0-dev"
 authors = [
   "Mark Stopka <mark.stopka@perlur.cloud>",
-  "Pavel Šimerda <pavel.simerda@perlur.cloud>"
+  "Pavel Šimerda <pavel.simerda@perlur.cloud>",
+  "Andrew Westberg"
 ]
 edition = "2018"
 readme = "README.md"
