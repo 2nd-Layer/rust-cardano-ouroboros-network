@@ -22,9 +22,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Setup Rust
-      uses: ATiltedTree/setup-rust@v1.0.4
+      uses: actions-rs/toolchain@v1
       with:
-        rust-version: ${{ matrix.rust }}
+        toolchain: ${{ matrix.rust }}
+        override: true
     - name: Build
       run: cargo build --verbose
     - name: Build examples
