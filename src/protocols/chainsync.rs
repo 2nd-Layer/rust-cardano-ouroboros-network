@@ -16,7 +16,7 @@ use std::{
 };
 
 use log::{debug, error, info, trace, warn};
-use serde_cbor::{de, ser, Value};
+use serde_cbor::{de, Deserializer, ser, Value};
 
 use crate::{
     Agency,
@@ -194,6 +194,8 @@ impl Protocol for ChainSyncProtocol {
                     chain_blocks.push((4492799, hex::decode("f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457").unwrap()));
                     // Last byron block of testnet
                     chain_blocks.push((1598399, hex::decode("7e16781b40ebf8b6da18f7b5e8ade855d6738095ef2f1c58c77e88b6e45997a4").unwrap()));
+                    // Last byron block of guild
+                    chain_blocks.push((359, hex::decode("baa280a8c640c186e44e2b78de82930e7524d8c7548c5c674aa280e671ce8a45").unwrap()));
 
                     trace!("intersect");
                     let payload = self.msg_find_intersect(chain_blocks);
@@ -236,86 +238,94 @@ impl Protocol for ChainSyncProtocol {
         //msgIntersectNotFound   = [6, tip]
         //chainSyncMsgDone       = [7]
 
-        let cbor_value: Value = de::from_slice(&data[..]).unwrap();
-        match cbor_value {
-            Value::Array(cbor_array) => {
-                match cbor_array[0] {
-                    Value::Integer(message_id) => {
-                        match message_id {
-                            1 => {
-                                // Server wants us to wait a bit until it gets a new block
-                                self.state = State::MustReply;
-                            }
-                            2 => {
-                                // MsgRollForward
-                                match parse_msg_roll_forward(cbor_array) {
-                                    None => { warn!("Probably a byron block. skipping...") }
-                                    Some((msg_roll_forward, tip)) => {
-                                        let is_tip = msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash;
-                                        trace!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
-                                        if is_tip || self.last_log_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
-                                            if self.mode == Mode::Sync {
-                                                info!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
-                                            }
-                                            self.last_log_time = Instant::now()
+        let cbor_iter = Deserializer::from_slice(&data[..]).into_iter::<Value>();
+
+        for cbor_result in cbor_iter {
+            match cbor_result {
+                Ok(cbor_value) => {
+                    match cbor_value {
+                        Value::Array(cbor_array) => {
+                            match cbor_array[0] {
+                                Value::Integer(message_id) => {
+                                    match message_id {
+                                        1 => {
+                                            // Server wants us to wait a bit until it gets a new block
+                                            self.state = State::MustReply;
                                         }
+                                        2 => {
+                                            // MsgRollForward
+                                            match parse_msg_roll_forward(cbor_array) {
+                                                None => { warn!("Probably a byron block. skipping...") }
+                                                Some((msg_roll_forward, tip)) => {
+                                                    let is_tip = msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash;
+                                                    trace!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
+                                                    if is_tip || self.last_log_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
+                                                        if self.mode == Mode::Sync {
+                                                            info!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
+                                                        }
+                                                        self.last_log_time = Instant::now()
+                                                    }
 
-                                        /* Classic sync: Store header data. */
-                                        /* TODO: error handling */
-                                        let _ = self.save_block(&msg_roll_forward, is_tip);
+                                                    /* Classic sync: Store header data. */
+                                                    /* TODO: error handling */
+                                                    let _ = self.save_block(&msg_roll_forward, is_tip);
 
-                                        if is_tip {
-                                            /* Got complete tip header. */
-                                            self.notify_tip(&msg_roll_forward);
-                                        } else {
-                                            match self.mode {
-                                                /* Next time get tip header. */
-                                                Mode::SendTip => self.jump_to_tip(tip),
-                                                _ => {}
+                                                    if is_tip {
+                                                        /* Got complete tip header. */
+                                                        self.notify_tip(&msg_roll_forward);
+                                                    } else {
+                                                        match self.mode {
+                                                            /* Next time get tip header. */
+                                                            Mode::SendTip => self.jump_to_tip(tip),
+                                                            _ => {}
+                                                        }
+                                                    }
+                                                }
                                             }
+
+                                            self.state = State::Idle;
+
+                                            // testing only so we sync only a single block
+                                            // self.state = State::Done;
+                                            // self.result = Some(Ok(String::from("Done")))
+                                        }
+                                        3 => {
+                                            // MsgRollBackward
+                                            let slot = parse_msg_roll_backward(cbor_array);
+                                            warn!("rollback to slot: {}", slot);
+                                            self.state = State::Idle;
+                                        }
+                                        5 => {
+                                            debug!("MsgIntersectFound: {:?}", cbor_array);
+                                            self.is_intersect_found = true;
+                                            self.state = State::Idle;
+                                        }
+                                        6 => {
+                                            warn!("MsgIntersectNotFound: {:?}", cbor_array);
+                                            self.is_intersect_found = true; // should start syncing at first byron block. We will just skip all byron blocks.
+                                            self.state = State::Idle;
+                                        }
+                                        7 => {
+                                            warn!("MsgDone: {:?}", cbor_array);
+                                            self.state = State::Done;
+                                            self.result = Some(Ok(String::from("Done")))
+                                        }
+                                        _ => {
+                                            error!("Got unexpected message_id: {}", message_id);
                                         }
                                     }
                                 }
-
-                                self.state = State::Idle;
-
-                                // testing only so we sync only a single block
-                                // self.state = State::Done;
-                                // self.result = Some(Ok(String::from("Done")))
-                            }
-                            3 => {
-                                // MsgRollBackward
-                                let slot = parse_msg_roll_backward(cbor_array);
-                                warn!("rollback to slot: {}", slot);
-                                self.state = State::Idle;
-                            }
-                            5 => {
-                                debug!("MsgIntersectFound: {:?}", cbor_array);
-                                self.is_intersect_found = true;
-                                self.state = State::Idle;
-                            }
-                            6 => {
-                                warn!("MsgIntersectNotFound: {:?}", cbor_array);
-                                self.is_intersect_found = true; // should start syncing at first byron block. We will just skip all byron blocks.
-                                self.state = State::Idle;
-                            }
-                            7 => {
-                                warn!("MsgDone: {:?}", cbor_array);
-                                self.state = State::Done;
-                                self.result = Some(Ok(String::from("Done")))
-                            }
-                            _ => {
-                                error!("Got unexpected message_id: {}", message_id);
+                                _ => {
+                                    error!("Unexpected cbor!")
+                                }
                             }
                         }
-                    }
-                    _ => {
-                        error!("Unexpected cbor!")
+                        _ => {
+                            error!("Unexpected cbor!")
+                        }
                     }
                 }
-            }
-            _ => {
-                error!("Unexpected cbor!")
+                Err(err) => { error!("cbor decode error!: {}, hex: {}", err, hex::encode(&data)) }
             }
         }
     }
@@ -393,8 +403,8 @@ pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(BlockHeader, Ti
                                             msg_roll_forward.eta_vrf_1.append(&mut nonce_array[1].bytes());
                                         }
                                         _ => {
-                                            warn!("invalid cbor!");
-                                            return None
+                                            warn!("invalid cbor! code: 340");
+                                            return None;
                                         }
                                     }
                                     match &block_header_array_inner[6] {
@@ -403,8 +413,8 @@ pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(BlockHeader, Ti
                                             msg_roll_forward.leader_vrf_1.append(&mut leader_array[1].bytes());
                                         }
                                         _ => {
-                                            warn!("invalid cbor!");
-                                            return None
+                                            warn!("invalid cbor! code: 341");
+                                            return None;
                                         }
                                     }
                                     msg_roll_forward.block_size = block_header_array_inner[7].integer() as i64;
@@ -417,26 +427,26 @@ pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(BlockHeader, Ti
                                     msg_roll_forward.protocol_minor_version = block_header_array_inner[14].integer() as i64;
                                 }
                                 _ => {
-                                    warn!("invalid cbor!");
-                                    return None
+                                    warn!("invalid cbor! code: 342");
+                                    return None;
                                 }
                             }
                         }
                         _ => {
-                            warn!("invalid cbor!");
-                            return None
+                            warn!("invalid cbor! code: 343");
+                            return None;
                         }
                     }
                 }
                 _ => {
-                    warn!("invalid cbor!");
-                    return None
+                    warn!("invalid cbor! code: 344");
+                    return None;
                 }
             }
         }
         _ => {
-            warn!("invalid cbor!");
-            return None
+            warn!("invalid cbor! code: 345");
+            return None;
         }
     }
 
@@ -448,15 +458,15 @@ pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(BlockHeader, Ti
                     tip.hash.append(&mut tip_info_array[1].bytes());
                 }
                 _ => {
-                    warn!("invalid cbor!");
-                    return None
+                    warn!("invalid cbor! code: 346");
+                    return None;
                 }
             }
             tip.block_number = tip_array[1].integer() as i64;
         }
         _ => {
-            warn!("invalid cbor!");
-            return None
+            warn!("invalid cbor! code: 347");
+            return None;
         }
     }
 
@@ -467,9 +477,11 @@ pub fn parse_msg_roll_backward(cbor_array: Vec<Value>) -> i64 {
     let mut slot: i64 = 0;
     match &cbor_array[1] {
         Value::Array(block) => {
-            match block[0] {
-                Value::Integer(parsed_slot) => { slot = parsed_slot as i64 }
-                _ => { error!("invalid cbor"); }
+            if block.len() > 0 {
+                match block[0] {
+                    Value::Integer(parsed_slot) => { slot = parsed_slot as i64 }
+                    _ => { error!("invalid cbor"); }
+                }
             }
         }
         _ => { error!("invalid cbor"); }

@@ -196,3 +196,32 @@ impl ChannelShared {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::thread;
+    use futures::executor::block_on;
+    use std::net::TcpListener;
+    use simple_logger::SimpleLogger;
+
+    #[test]
+    fn connection_works() {
+        SimpleLogger::new().init().unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let cli = thread::spawn(move || { block_on(async move {
+            let client = connect("127.0.0.1", port).await.unwrap();
+            std::thread::sleep(Duration::from_secs(1));
+            client.handshake(764824073).await.unwrap();
+        }) });
+        let srv = thread::spawn(move || { block_on(async move {
+            let server = Channel::new(listener.accept().unwrap().0);
+            server.execute(HandshakeProtocol::expect(764824073)).await.unwrap();
+        }) });
+
+        cli.join().unwrap();
+        srv.join().unwrap();
+    }
+}
