@@ -210,13 +210,13 @@ impl Protocol for HandshakeProtocol {
                 Some(payload)
             }
             State::Confirm => {
-                /* TODO: [stub] implement proper negotiation */
+                /* TODO: [stub] implement proper negotiation, we now use fixed protocol version */
                 self.result = Some(Ok("confirmed".to_string()));
                 self.state = State::Done;
                 Some(ser::to_vec(
                     &Array(vec![
                            Integer(1),
-                           Integer(5),
+                           Integer(6),
                            Array(vec![
                                Integer(self.network_magic.into()),
                                Bool(false),
@@ -279,7 +279,7 @@ mod tests {
         ser::to_vec(
             &Array(vec![
                    Integer(1),
-                   Integer(5),
+                   Integer(6),
                    Array(vec![
                        Integer(magic.into()),
                        Bool(false),
