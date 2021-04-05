@@ -266,6 +266,10 @@ mod tests {
                         Integer(magic.into()),
                         Bool(false),
                     ])),
+                    (Integer(6), Array(vec![
+                        Integer(magic.into()),
+                        Bool(false),
+                    ])),
                 ].into_iter().collect::<BTreeMap<Value,Value>>()),
             ])
         ).unwrap()
