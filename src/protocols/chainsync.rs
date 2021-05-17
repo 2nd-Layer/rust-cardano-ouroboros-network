@@ -190,12 +190,13 @@ impl Protocol for ChainSyncProtocol {
                         chain_blocks.push((tip.slot_number, tip.hash.clone()));
                     }
 
+                    //TODO: Make these protocol inputs instead of hardcoding here
                     // Last byron block of mainnet
                     chain_blocks.push((4492799, hex::decode("f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457").unwrap()));
                     // Last byron block of testnet
                     chain_blocks.push((1598399, hex::decode("7e16781b40ebf8b6da18f7b5e8ade855d6738095ef2f1c58c77e88b6e45997a4").unwrap()));
                     // Last byron block of guild
-                    chain_blocks.push((359, hex::decode("baa280a8c640c186e44e2b78de82930e7524d8c7548c5c674aa280e671ce8a45").unwrap()));
+                    chain_blocks.push((359, hex::decode("9c0fe75b6a0499e9576a09589a5777e7021824e8a6d037065829423f861a9bb6").unwrap()));
 
                     trace!("intersect");
                     let payload = self.msg_find_intersect(chain_blocks);
