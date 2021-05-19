@@ -29,7 +29,7 @@ fn main() {
     let cfg = common::init();
 
     block_on(async {
-        let channel = mux::tcp::connect(&cfg.host, cfg.port).await.unwrap();
+        let channel = mux::connection::connect(&cfg.host, cfg.port).await.unwrap();
         channel.handshake(cfg.magic).await.unwrap();
         channel.execute(ChainSyncProtocol {
             mode: Mode::SendTip,
