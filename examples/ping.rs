@@ -18,9 +18,9 @@ use futures::{
 
 mod common;
 
-async fn ping(host: &String, port: u16, magic: u32) -> Result<(Duration, Duration), String>{
+async fn ping(host: &String, port: u16, magic: u32) -> Result<(Duration, Duration), String> {
     info!("Pinging host {} port {} magic {}.", host, port, magic);
-    let channel = match mux::tcp::connect(&host, port).await {
+    let channel = match mux::connection::connect(&host, port).await {
         Ok(channel) => channel,
         Err(_) => { return Err("Could not connect.".to_string()) }
     };
