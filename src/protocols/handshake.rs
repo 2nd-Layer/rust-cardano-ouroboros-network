@@ -21,6 +21,7 @@ const PROTOCOL_NODE_TO_NODE_V3: i128 = 0x03;
 const PROTOCOL_NODE_TO_NODE_V4: i128 = 0x04; // new queries added to local state query mini-protocol
 const PROTOCOL_NODE_TO_NODE_V5: i128 = 0x05; // Allegra
 const PROTOCOL_NODE_TO_NODE_V6: i128 = 0x06; // Mary
+const PROTOCOL_NODE_TO_NODE_V7: i128 = 0x07; // Alonzo
 const MIN_NODE_TO_NODE_PROTOCOL_VERSION: i128 = PROTOCOL_NODE_TO_NODE_V6;
 
 // For Node to Client, set the 15th bit to 1 from version 2 on.
@@ -113,6 +114,13 @@ impl HandshakeProtocol {
                 );
                 payload_map.insert(
                     Value::Integer(PROTOCOL_NODE_TO_NODE_V6),
+                    Value::Array(vec![
+                        Value::Integer(network_magic as i128),
+                        Value::Bool(false),
+                    ]),
+                );
+                payload_map.insert(
+                    Value::Integer(PROTOCOL_NODE_TO_NODE_V7),
                     Value::Array(vec![
                         Value::Integer(network_magic as i128),
                         Value::Bool(false),
@@ -368,6 +376,7 @@ mod tests {
                 (Integer(4), Array(vec![Integer(magic.into()), Bool(false)])),
                 (Integer(5), Array(vec![Integer(magic.into()), Bool(false)])),
                 (Integer(6), Array(vec![Integer(magic.into()), Bool(false)])),
+                (Integer(7), Array(vec![Integer(magic.into()), Bool(false)])),
             ]
             .into_iter()
             .collect::<BTreeMap<Value, Value>>()),
