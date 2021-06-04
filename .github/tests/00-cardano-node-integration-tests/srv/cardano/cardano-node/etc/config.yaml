@@ -1,0 +1,61 @@
+"TurnOnLogging": true,
+"TurnOnLogMetrics": true,
+"TracingVerbosity": "NormalVerbosity",
+"minSeverity": "Debug",
+"TraceBlockFetchClient": false,
+"TraceBlockFetchDecisions": false,
+"TraceBlockFetchProtocol": false,
+"TraceBlockFetchProtocolSerialised": false,
+"TraceBlockFetchServer": false,
+"TraceBlockchainTime": false,
+"TraceChainDb": true,
+"TraceChainSyncBlockServer": false,
+"TraceChainSyncClient": false,
+"TraceChainSyncHeaderServer": false,
+"TraceChainSyncProtocol": false,
+"TraceDNSResolver": true,
+"TraceDNSSubscription": true,
+"TraceErrorPolicy": true,
+"TraceForge": true,
+"TraceHandshake": false,
+"TraceIpSubscription": true,
+"TraceLocalChainSyncProtocol": false,
+"TraceLocalErrorPolicy": true,
+"TraceLocalHandshake": false,
+"TraceLocalTxSubmissionProtocol": false,
+"TraceLocalTxSubmissionServer": false,
+"TraceMempool": true,
+"TraceMux": false,
+"TraceTxInbound": false,
+"TraceTxOutbound": false,
+"TraceTxSubmissionProtocol": false,
+"setupBackends": [
+  "KatipBK"
+],
+"defaultBackends": [
+  "KatipBK"
+],
+"hasEKG": 12788,
+"hasPrometheus": [
+  "127.0.0.1",
+  12798
+],
+"setupScribes": [
+  {
+    "scFormat": "ScText",
+    "scKind": "StdoutSK",
+    "scName": "stdout",
+    "scRotation": null
+  }
+],
+"defaultScribes": [
+  [
+    "StdoutSK",
+    "stdout"
+  ]
+],
+"rotation": {
+  "rpKeepFilesNum": 10,
+  "rpLogLimitBytes": 5000000,
+  "rpMaxAgeHours": 24
+  },
