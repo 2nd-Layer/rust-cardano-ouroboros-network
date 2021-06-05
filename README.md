@@ -12,7 +12,7 @@ We regularly apply for funding from individual funds of [Cardano Project Catalys
 This repository implements a [GitHub Action](https://github.com/aslafy-z/conventional-pr-title-action) to make sure that the PR name follows [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). Make sure your PRs follow the referred specification to pass Continuous Integration testing. 
 
 ## Sponsorship
-You may sponsor this project on Patreon, or it's individual contributors, another way to support this project is to delegate to [**DOLCA** Cardano Stake Pool](https://dolca.2ndlayer.eu).
+You may sponsor this project on Patreon, or it's individual contributors, another way to support this project is to delegate to [**MUSE** Cardano Stake Pool](https://www.musestakepool.io/).
 
 ### Individual Contributors
 - Pavel Šimerda ([@pavlix](https://github.com/pavlix)) - Lead Developer
