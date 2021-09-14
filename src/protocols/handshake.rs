@@ -33,7 +33,8 @@ const PROTOCOL_NODE_TO_CLIENT_V5: i128 = 0x05 ^ 0x8000; // Allegra
 const PROTOCOL_NODE_TO_CLIENT_V6: i128 = 0x06 ^ 0x8000; // Mary
 const PROTOCOL_NODE_TO_CLIENT_V7: i128 = 0x07 ^ 0x8000; // new queries added to local state query mini-protocol
 const PROTOCOL_NODE_TO_CLIENT_V8: i128 = 0x08 ^ 0x8000; // codec changed for local state query mini-protocol
-const MIN_NODE_TO_CLIENT_PROTOCOL_VERSION: i128 = PROTOCOL_NODE_TO_CLIENT_V8;
+const PROTOCOL_NODE_TO_CLIENT_V9: i128 = 0x08 ^ 0x8000; // Updates for Alonzo
+const MIN_NODE_TO_CLIENT_PROTOCOL_VERSION: i128 = PROTOCOL_NODE_TO_CLIENT_V9;
 
 const MSG_ACCEPT_VERSION_MSG_ID: i128 = 1;
 
@@ -158,6 +159,10 @@ impl HandshakeProtocol {
                 );
                 payload_map.insert(
                     Value::Integer(PROTOCOL_NODE_TO_CLIENT_V8),
+                    Value::Integer(network_magic as i128),
+                );
+                payload_map.insert(
+                    Value::Integer(PROTOCOL_NODE_TO_CLIENT_V9),
                     Value::Integer(network_magic as i128),
                 );
             }
