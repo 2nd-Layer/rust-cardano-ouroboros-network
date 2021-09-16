@@ -5,6 +5,10 @@ This crate implements the networking layer for the Ouroboros blockchain protocol
 
 ## [Cardano Project Catalyst](https://cardano.ideascale.com/a/home)
 We regularly apply for funding from individual funds of [Cardano Project Catalyst](https://cardano.ideascale.com/a/home), below you can see our history of applications for funding:
+  - [ ] [Fund 6 - Ouroboros Rust Networking Crate](https://cardano.ideascale.com/a/dtd/Rust-Cardano-Networking-Crate/367442-48088), vote pending
+    - 14 000 USD requested
+
+### Closed Funding Rounds
   - [ ] [Fund 3 - Ouroboros Rust Networking Crate](https://cardano.ideascale.com/a/dtd/Ouroboros-Networking-Rust-Crate/333161-48088), project not funded
     - 7 000 USD requested, but was over budget for Fund 3
 
