@@ -49,7 +49,7 @@ pub struct Tip {
     pub hash: Vec<u8>,
 }
 
-pub trait Listener {
+pub trait Listener : Send {
     fn handle_tip(&mut self, msg_roll_forward: &BlockHeader);
 }
 

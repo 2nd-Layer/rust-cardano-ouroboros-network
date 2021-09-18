@@ -48,7 +48,7 @@ pub enum Agency {
     None,
 }
 
-pub trait BlockStore {
+pub trait BlockStore : Send {
     fn save_block(&mut self, pending_blocks: &mut Vec<BlockHeader>, network_magic: u32) -> io::Result<()>;
     fn load_blocks(&mut self) -> Option<Vec<(i64, Vec<u8>)>>;
 }
