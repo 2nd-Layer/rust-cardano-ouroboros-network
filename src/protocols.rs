@@ -12,3 +12,4 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 pub mod handshake;
 pub mod transaction;
 pub mod chainsync;
+pub mod blockfetch;
