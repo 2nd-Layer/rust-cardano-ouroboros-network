@@ -5,9 +5,8 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
 */
 
-use cardano_ouroboros_network::mux;
-use futures::executor::block_on;
-use log::{error, info};
+use cardano_ouroboros_network::mux::Connection;
+use log::info;
 use std::env;
 
 mod common;
@@ -16,21 +15,21 @@ mod common;
  * Test a handshake with the local node's unix socket
  */
 #[cfg(target_family = "unix")]
-fn main() {
+#[tokio::main]
+async fn main() {
     let cfg = common::init();
-    let args: Vec<String> = env::args().collect();
     let magic = cfg.magic;
 
-    let socket_path = &args[1];
-    info!("UNIX socket path set to {} ", socket_path);
+    let mut args = env::args();
+    args.next();
+    let socket_path = &args.next().unwrap_or("test.sock".to_string());
+    info!("UNIX socket path set to {:?} ", socket_path);
 
-    block_on(async {
-        let channel = mux::connection::connect_unix(socket_path)
-            .await
-            .unwrap();
-        channel.handshake(magic).await.unwrap();
-        info!("Ping UNIX socket success");
-    });
+    let mut connection = Connection::unix_connect(socket_path)
+        .await
+        .unwrap();
+    connection.handshake(magic).await.unwrap();
+    info!("Ping UNIX socket success");
 }
 
 #[cfg(target_family = "windows")]
