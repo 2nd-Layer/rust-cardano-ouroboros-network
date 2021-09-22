@@ -17,7 +17,7 @@ fn main() {
     let cfg = common::init();
 
     block_on(async {
-        let channel = mux::tcp::connect("127.0.0.1", cfg.port).await.unwrap();
+        let channel = mux::connection::connect("127.0.0.1", cfg.port).await.unwrap();
         channel.handshake(cfg.magic).await.unwrap();
         channel.execute(pingpong::PingPongProtocol::new(0x0100)).await.unwrap();
     });

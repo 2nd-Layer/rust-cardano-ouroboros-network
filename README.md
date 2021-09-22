@@ -5,6 +5,10 @@ This crate implements the networking layer for the Ouroboros blockchain protocol
 
 ## [Cardano Project Catalyst](https://cardano.ideascale.com/a/home)
 We regularly apply for funding from individual funds of [Cardano Project Catalyst](https://cardano.ideascale.com/a/home), below you can see our history of applications for funding:
+  - [ ] [Fund 6 - Ouroboros Rust Networking Crate](https://cardano.ideascale.com/a/dtd/Rust-Cardano-Networking-Crate/367442-48088), vote pending
+    - 14 000 USD requested
+
+### Closed Funding Rounds
   - [ ] [Fund 3 - Ouroboros Rust Networking Crate](https://cardano.ideascale.com/a/dtd/Ouroboros-Networking-Rust-Crate/333161-48088), project not funded
     - 7 000 USD requested, but was over budget for Fund 3
 
@@ -12,7 +16,7 @@ We regularly apply for funding from individual funds of [Cardano Project Catalys
 This repository implements a [GitHub Action](https://github.com/aslafy-z/conventional-pr-title-action) to make sure that the PR name follows [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). Make sure your PRs follow the referred specification to pass Continuous Integration testing. 
 
 ## Sponsorship
-You may sponsor this project on Patreon, or it's individual contributors, another way to support this project is to delegate to [**DOLCA** Cardano Stake Pool](https://dolca.2ndlayer.eu).
+You may sponsor this project on Patreon, or it's individual contributors, another way to support this project is to delegate to [**MUSE** Cardano Stake Pool](https://www.musestakepool.io/).
 
 ### Individual Contributors
 - Pavel Šimerda ([@pavlix](https://github.com/pavlix)) - Lead Developer
