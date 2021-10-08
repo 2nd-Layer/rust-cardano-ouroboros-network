@@ -5,7 +5,7 @@ use futures::executor::block_on;
 SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
 */
-use log::info;
+use log::{info, error};
 
 use cardano_ouroboros_network::mux;
 
@@ -14,6 +14,7 @@ mod common;
 /**
  * Test a handshake with the local node's unix socket
  */
+ #[cfg(target_family = "unix")]
 fn main() {
     let _cfg = common::init();
 
@@ -24,4 +25,11 @@ fn main() {
         channel.handshake(764824073).await.unwrap();
         info!("Ping unix socket success");
     });
+}
+
+#[cfg(target_family = "windows")]
+fn main() {
+    let _cfg = common::init();
+
+    error!("This test is not available on Windows!");
 }

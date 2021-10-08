@@ -18,14 +18,18 @@ use std::{
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use log::{log_enabled, trace};
 use net2::TcpStreamExt;
+#[cfg(target_family = "unix")]
 use std::os::unix::net::UnixStream;
 
-use crate::mux::connection::Stream::{Tcp, Unix};
+use crate::mux::connection::Stream::Tcp;
+#[cfg(target_family = "unix")]
+use crate::mux::connection::Stream::Unix;
 use crate::protocols::handshake::ConnectionType;
 use crate::{protocols::handshake::HandshakeProtocol, Agency, Protocol};
 
 pub enum Stream {
     Tcp(TcpStream),
+    #[cfg(target_family = "unix")]
     Unix(UnixStream),
 }
 
@@ -33,6 +37,7 @@ impl Write for Stream {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
         match self {
             Tcp(tcp_stream) => tcp_stream.write(buf),
+            #[cfg(target_family = "unix")]
             Unix(unix_stream) => unix_stream.write(buf),
         }
     }
@@ -40,6 +45,7 @@ impl Write for Stream {
     fn flush(&mut self) -> Result<(), Error> {
         match self {
             Tcp(tcp_stream) => tcp_stream.flush(),
+            #[cfg(target_family = "unix")]
             Unix(unix_stream) => unix_stream.flush(),
         }
     }
@@ -49,6 +55,7 @@ impl Read for Stream {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         match self {
             Tcp(tcp_stream) => tcp_stream.read(buf),
+            #[cfg(target_family = "unix")]
             Unix(unix_stream) => unix_stream.read(buf),
         }
     }
@@ -56,6 +63,7 @@ impl Read for Stream {
     fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
         match self {
             Tcp(tcp_stream) => tcp_stream.read_exact(buf),
+            #[cfg(target_family = "unix")]
             Unix(unix_stream) => unix_stream.read_exact(buf),
         }
     }
@@ -82,6 +90,7 @@ pub async fn connect(host: &str, port: u16) -> io::Result<Channel> {
     Ok(Channel::new(Tcp(stream)))
 }
 
+#[cfg(target_family = "unix")]
 pub async fn connect_unix(socket_path: &str) -> io::Result<Channel> {
     /* TODO: Consider asynchronous operations */
     let stream = UnixStream::connect(socket_path)?;
@@ -119,6 +128,7 @@ impl Channel {
     pub async fn handshake(&self, magic: u32) -> Result<String, String> {
         let connection_type = match self.shared.borrow().stream {
             Tcp(_) => ConnectionType::Tcp,
+            #[cfg(target_family = "unix")]
             Unix(_) => ConnectionType::Unix,
         };
         self.execute(HandshakeProtocol::new(magic, connection_type))
