@@ -1,10 +1,15 @@
 /**
-© 2020 PERLUR Group
+© 2021 PERLUR Group
 
 SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
 */
 
+use byteorder::{ByteOrder, NetworkEndian};
+use crate::{
+    Protocol,
+    Agency,
+};
 use std::{
     time::{Instant},
     sync::{Arc,Mutex},
@@ -16,11 +21,6 @@ use tokio::{
     sync::mpsc,
     net::TcpStream,
     io::{AsyncWriteExt,AsyncReadExt},
-};
-use byteorder::{ByteOrder, NetworkEndian};
-use crate::{
-    Protocol,
-    Agency,
 };
 
 type Subchannels = Arc<Mutex<HashMap<u16, mpsc::UnboundedSender<Vec<u8>>>>>;

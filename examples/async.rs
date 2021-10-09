@@ -1,21 +1,21 @@
 /**
-© 2020 PERLUR Group
+© 2021 PERLUR Group
 
 SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
 */
 
+use cardano_ouroboros_network::{
+    experimental::tokio::Channel,
+    protocols::handshake::{HandshakeProtocol, ConnectionType},
+    protocols::chainsync::{ChainSyncProtocol, Mode},
+};
 use std::{
     time::{Duration},
     net::ToSocketAddrs,
 };
 use tokio;
 use tokio::net::TcpStream;
-use cardano_ouroboros_network::{
-    experimental::tokio::Channel,
-    protocols::handshake::{HandshakeProtocol, ConnectionType},
-    protocols::chainsync::{ChainSyncProtocol, Mode},
-};
 
 mod common;
 mod sqlite;
