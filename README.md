@@ -1,6 +1,21 @@
 # Cardano Rust Ouroboros Network
 This crate implements the networking layer for the Ouroboros blockchain protocol.
 
+## Mini-protocol Implementation Status
+
+| **Protocol Name** | **Implementation Status** |
+|-------------------|---------------------------|
+| BlockFetch        | Not Implemented           |
+| ChainSync         | Implemented               |
+| Handshake         | Implemented               |
+| KeepAlive         | Not Implemented           |
+| LocalStateQuery   | Not Implemented           |
+| LocalTxMonitor    | Not Implemented           |
+| LocalTxSubmission | Not Implemented           |
+| TipSample         | Not Implemented           |
+| TxSubmission      | Partially Implemented     |
+| TxSubmission2     | Not Implemented           |
+
 # Contributing
 
 ## Submit Pull Requests
