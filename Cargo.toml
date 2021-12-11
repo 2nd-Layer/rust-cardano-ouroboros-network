@@ -29,7 +29,7 @@ serde_json = "1.0.59"
 log = "0.4.11"
 
 [dev-dependencies]
-simple_logger = { version = "1.15.1", default-features = false }
+simple_logger = { version = "1.15.1", default-features = false, features = ["colors"] }
 futures = "0.3.8"
 rusqlite = { version = "0.26.0", features = ["bundled"] }
 
