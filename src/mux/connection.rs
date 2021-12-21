@@ -73,7 +73,7 @@ pub async fn connect(host: &str, port: u16) -> io::Result<Channel> {
     /* TODO: Consider asynchronous operations */
     let saddr = (host, port)
         .to_socket_addrs()?
-        .nth(0)
+        .next()
         .ok_or(Error::new(ErrorKind::NotFound, "No valid host found!"))?;
     let stream = TcpStream::connect_timeout(&saddr, Duration::from_secs(2))?;
     stream.set_nodelay(true).unwrap();
@@ -190,7 +190,7 @@ impl ChannelShared {
                                 msg.write_u16::<NetworkEndian>(id).unwrap();
                                 msg.write_u16::<NetworkEndian>(payload.len() as u16)
                                     .unwrap();
-                                msg.write(&payload[..]).unwrap();
+                                msg.write_all(&payload[..]).unwrap();
                                 /* TODO:
                                  *   * Asynchronous Rx.
                                  *   * Handle errors.
