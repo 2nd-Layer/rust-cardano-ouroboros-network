@@ -63,6 +63,7 @@ There are two documents which describe various levels of the networking layer of
   - [Haskell Cardano Node Ouroboros Network](https://github.com/input-output-hk/ouroboros-network/tree/master/ouroboros-network)
   - [~~Rust Sub-set of Cardano Node Ouroboros Network Protocols~~](https://github.com/AndrewWestberg/cncli/tree/develop/src/nodeclient/protocols)
     - [CNCLI](https://github.com/AndrewWestberg/cncli) now uses this Rust crate for networking layer
+  - [Pallas - Rust-native building blocks for the Cardano blockchain ecosystem](https://github.com/txpipe/pallas)
 
 # License
 
