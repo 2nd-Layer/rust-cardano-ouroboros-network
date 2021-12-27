@@ -38,14 +38,14 @@ async fn main() {
     stream.set_nodelay(true).unwrap();
     //stream.set_keepalive_ms(Some(10_000u32)).unwrap();
 
-    let mut channel = Channel::new(stream).await;
+    let mut channel = Channel::new(stream);
 
     // Handshake
-    channel.execute(Box::new(HandshakeProtocol::new(magic, ConnectionType::Tcp))).await;
-    channel.execute(Box::new(ChainSyncProtocol {
+    channel.execute(&mut HandshakeProtocol::new(magic, ConnectionType::Tcp)).await;
+    channel.execute(&mut ChainSyncProtocol {
         mode: Mode::Sync,
         network_magic: magic,
         store: Some(Box::new(sqlite::SQLiteBlockStore::new(&cfg.db).unwrap())),
         ..Default::default()
-    })).await;
+    }).await;
 }
