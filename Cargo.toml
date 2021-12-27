@@ -2,7 +2,7 @@
 name = "cardano_ouroboros_network"
 description = "This crate implements the networking layer for the Ouroboros protocol used by Cardano blockchain."
 license = "GPL-3.0 OR LGPL-3.0-only"
-version = "0.2.7"
+version = "0.2.8"
 authors = [
   "Mark Stopka <mark.stopka@perlur.cloud>",
   "Pavel Šimerda <pavel.simerda@perlur.cloud>",
@@ -19,7 +19,7 @@ categories = ["network-programming"]
 experimental = ["tokio"]
 
 [dependencies]
-blake2b_simd = "0.5.11"
+blake2b_simd = "1.0.0"
 byteorder = "1.3.4"
 chrono = "0.4.19"
 hex = "0.4.2"
@@ -33,7 +33,7 @@ log = "0.4.11"
 tokio = { version = "1.11.0", features = ["full"], optional = true}
 
 [dev-dependencies]
-simple_logger = "1.11.0"
+simple_logger = { version = "1.15.1", default-features = false, features = ["colors"] }
 futures = "0.3.8"
 rusqlite = { version = "0.26.0", features = ["bundled"] }
 

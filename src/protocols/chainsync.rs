@@ -196,7 +196,7 @@ impl Protocol for ChainSyncProtocol {
                     // Last byron block of testnet
                     chain_blocks.push((1598399, hex::decode("7e16781b40ebf8b6da18f7b5e8ade855d6738095ef2f1c58c77e88b6e45997a4").unwrap()));
                     // Last byron block of guild
-                    chain_blocks.push((359, hex::decode("9c0fe75b6a0499e9576a09589a5777e7021824e8a6d037065829423f861a9bb6").unwrap()));
+                    chain_blocks.push((719, hex::decode("e5400faf19e712ebc5ff5b4b44cecb2b140d1cca25a011e36a91d89e97f53e2e").unwrap()));
 
                     trace!("intersect");
                     let payload = self.msg_find_intersect(chain_blocks);
