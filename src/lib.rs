@@ -3,7 +3,7 @@ Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
 © 2020 Andrew Westberg licensed under Apache-2.0
 
 Re-licensed under GPLv3 or LGPLv3
-© 2020 PERLUR Group
+© 2020 - 2021 PERLUR Group
 
 SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
@@ -48,7 +48,7 @@ pub enum Agency {
     None,
 }
 
-pub trait BlockStore {
+pub trait BlockStore : Send {
     fn save_block(&mut self, pending_blocks: &mut Vec<BlockHeader>, network_magic: u32) -> io::Result<()>;
     fn load_blocks(&mut self) -> Option<Vec<(i64, Vec<u8>)>>;
 }
@@ -73,4 +73,9 @@ pub struct BlockHeader {
     pub unknown_2: Vec<u8>,
     pub protocol_major_version: i64,
     pub protocol_minor_version: i64,
+}
+
+#[cfg(feature = "experimental")]
+pub mod experimental {
+    pub mod tokio;
 }
