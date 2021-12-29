@@ -1,30 +1,34 @@
 # Cardano Rust Ouroboros Network
 This crate implements the networking layer for the Ouroboros blockchain protocol.
 
+## Mini-protocol Implementation Status
+
+| **Protocol Name** | **Implementation Status** |
+|-------------------|---------------------------|
+| BlockFetch        | Not Implemented           |
+| ChainSync         | Implemented               |
+| Handshake         | Implemented               |
+| KeepAlive         | Not Implemented           |
+| LocalStateQuery   | Not Implemented           |
+| LocalTxMonitor    | Not Implemented           |
+| LocalTxSubmission | Not Implemented           |
+| TipSample         | Not Implemented           |
+| TxSubmission      | Partially Implemented     |
+| TxSubmission2     | Not Implemented           |
+
 # Contributing
-
-## [Cardano Project Catalyst](https://cardano.ideascale.com/a/home)
-We regularly apply for funding from individual funds of [Cardano Project Catalyst](https://cardano.ideascale.com/a/home), below you can see our history of applications for funding:
-  - [ ] [Fund 6 - Ouroboros Rust Networking Crate](https://cardano.ideascale.com/a/dtd/Rust-Cardano-Networking-Crate/367442-48088), vote pending
-    - 14 000 USD requested
-
-### Closed Funding Rounds
-  - [ ] [Fund 3 - Ouroboros Rust Networking Crate](https://cardano.ideascale.com/a/dtd/Ouroboros-Networking-Rust-Crate/333161-48088), project not funded
-    - 7 000 USD requested, but was over budget for Fund 3
 
 ## Submit Pull Requests
 This repository implements a [GitHub Action](https://github.com/aslafy-z/conventional-pr-title-action) to make sure that the PR name follows [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). Make sure your PRs follow the referred specification to pass Continuous Integration testing. 
 
-## Sponsorship
-You may sponsor this project on Patreon, or it's individual contributors, another way to support this project is to delegate to [**MUSE** Cardano Stake Pool](https://www.musestakepool.io/).
+## [Cardano Project Catalyst](https://cardano.ideascale.com/a/home)
+We regularly apply for funding from individual funds of [Cardano Project Catalyst](https://cardano.ideascale.com/a/home), below you can see our history of applications for funding:
 
-### Individual Contributors
-- Pavel Šimerda ([@pavlix](https://github.com/pavlix)) - Lead Developer
-  - Cardano (ADA) UTXO: addr1qyaxz80syzp4stauqrde3q23s44tv4qftfm7sh0nl72rkp49pdnz3gaufp4pk4qc6dk6nlpcqkx054fzu2qkzs8tmeqs9s7wa8
-- Andrew Westberg ([@AndrewWestberg](https://github.com/AndrewWestberg)) - Frequent Contributor
-  - Cardano (ADA) UTXO: addr1q9vmyd99hqde93nu8hvv3ee5ejrdcfex9cy8v6w7r6jrzu0l27sthj42mfetdc7kmyzycssdr2xajau53pxnjqslr63sp7jrau
- - Mark Stopka ([@mark-stopka](https://github.com/mark-stopka)) - Project Manager & Primary Source of Funding
-   - Cardano (ADA) UTXO: addr1q8n9fvnsdtdt5fpgtl5tmcwuffx6p8ghnglvdt9ww29sp2x55ludjw69v2yunl2p8utckd79etn7m3uaw69swxkmanlq4tvnkk
+### Closed Funding Rounds
+  - [ ] [Fund 6 - Ouroboros Rust Networking Crate](https://cardano.ideascale.com/a/dtd/Rust-Cardano-Networking-Crate/367442-48088), project not funded
+    - 14 000 USD requested, but was over budget for Fund 6
+  - [ ] [Fund 3 - Ouroboros Rust Networking Crate](https://cardano.ideascale.com/a/dtd/Ouroboros-Networking-Rust-Crate/333161-48088), project not funded
+    - 7 000 USD requested, but was over budget for Fund 3
 
 # Ouroboros Network Protocol Documenation
 There are two documents which describe various levels of the networking layer of the Cardano Node Shelley implementation:
@@ -59,6 +63,7 @@ There are two documents which describe various levels of the networking layer of
   - [Haskell Cardano Node Ouroboros Network](https://github.com/input-output-hk/ouroboros-network/tree/master/ouroboros-network)
   - [~~Rust Sub-set of Cardano Node Ouroboros Network Protocols~~](https://github.com/AndrewWestberg/cncli/tree/develop/src/nodeclient/protocols)
     - [CNCLI](https://github.com/AndrewWestberg/cncli) now uses this Rust crate for networking layer
+  - [Pallas - Rust-native building blocks for the Cardano blockchain ecosystem](https://github.com/txpipe/pallas)
 
 # License
 
