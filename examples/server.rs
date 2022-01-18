@@ -15,7 +15,6 @@ use cardano_ouroboros_network::{
 use std::net::{TcpListener, TcpStream};
 use log::{info, error};
 use futures::executor::block_on;
-use cardano_ouroboros_network::protocols::handshake::ConnectionType;
 use cardano_ouroboros_network::mux::connection::Stream::Tcp;
 
 mod common;
@@ -32,12 +31,18 @@ fn main() {
     }
 }
 
-fn handle(stream: TcpStream, cfg: &common::Config) -> Result<(), String> {
+type Error = Box<dyn std::error::Error>;
+
+fn handle(stream: TcpStream, cfg: &common::Config) -> Result<(), Error> {
     let channel = Channel::new(Tcp(stream));
 
     info!("new client!");
     block_on(async {
-        channel.execute(handshake::HandshakeProtocol::expect(cfg.magic, ConnectionType::Tcp)).await?;
+        channel.execute(handshake::HandshakeProtocol::builder()
+            .server()
+            .node_to_node()
+            .network_magic(cfg.magic)
+            .build()?).await?;
         channel.execute(pingpong::PingPongProtocol::expect(0x0100)).await?;
         Ok(())
     })
