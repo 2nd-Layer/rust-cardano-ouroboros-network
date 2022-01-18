@@ -24,8 +24,8 @@ use std::os::unix::net::UnixStream;
 use crate::mux::connection::Stream::Tcp;
 #[cfg(target_family = "unix")]
 use crate::mux::connection::Stream::Unix;
-use crate::protocols::handshake::ConnectionType;
-use crate::{protocols::handshake::HandshakeProtocol, Agency, Protocol};
+use crate::protocols::handshake::HandshakeProtocol;
+use crate::{Agency, Protocol};
 
 pub enum Stream {
     Tcp(TcpStream),
@@ -126,19 +126,32 @@ impl Channel {
     }
 
     pub async fn handshake(&self, magic: u32) -> Result<String, String> {
-        let connection_type = match self.shared.borrow().stream {
-            Tcp(_) => ConnectionType::Tcp,
+        let protocol = match self.shared.borrow().stream {
+            Tcp(_) => {
+                HandshakeProtocol::builder()
+                    .network_magic(magic)
+                    .client()
+                    .node_to_node()
+                    .build()
+            }
             #[cfg(target_family = "unix")]
-            Unix(_) => ConnectionType::Unix,
+            Unix(_) => {
+                HandshakeProtocol::builder()
+                    .network_magic(magic)
+                    .client()
+                    .client_to_node()
+                    .build()
+            }
         };
-        self.execute(HandshakeProtocol::new(magic, connection_type))
-            .await
+        self.execute(protocol.map_err(|e| e.to_string())?).await
     }
 
     pub async fn execute(&self, protocol: impl Protocol + 'static) -> Result<String, String> {
         let shared = self.shared.clone();
         let proto = Rc::new(RefCell::new(Box::new(protocol) as Box<dyn Protocol>));
         {
+            use log::error;
+            error!("here");
             let mut shared = shared.borrow_mut();
             let id = proto.borrow().protocol_id() as usize;
             let newlen = max(shared.protocols.len(), id + 1);
@@ -304,7 +317,12 @@ mod tests {
             block_on(async move {
                 let server = Channel::new(Tcp(listener.accept().unwrap().0));
                 server
-                    .execute(HandshakeProtocol::expect(764824073, ConnectionType::Tcp))
+                    .execute(HandshakeProtocol::builder()
+                        .network_magic(764824073)
+                        .server()
+                        .node_to_node()
+                        .build()
+                        .unwrap())
                     .await
                     .unwrap();
             })

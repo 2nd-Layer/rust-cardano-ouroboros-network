@@ -9,6 +9,7 @@ use byteorder::{ByteOrder, NetworkEndian};
 use crate::{
     Protocol,
     Agency,
+    protocols::handshake::HandshakeProtocol,
 };
 use std::{
     time::{Instant, Duration},
@@ -94,6 +95,13 @@ impl Channel {
             self.unregister(idx);
             Ok(())
         }
+    }
+    pub async fn handshake(&mut self, magic: u32) -> Result<(), Error> {
+        self.execute(&mut HandshakeProtocol::builder()
+            .client()
+            .node_to_node()
+            .network_magic(magic)
+            .build()?).await
     }
     fn register(&mut self, idx: u16) -> Receiver<Payload> {
         let (tx, rx) = mpsc::unbounded_channel();
