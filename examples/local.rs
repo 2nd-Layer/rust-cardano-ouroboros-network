@@ -7,7 +7,7 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
 use cardano_ouroboros_network::mux;
 use futures::executor::block_on;
-use log::info;
+use log::error;
 use std::env;
 
 mod common;
