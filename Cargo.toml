@@ -34,7 +34,7 @@ tokio = { version = "1.15.0", features = ["full"], optional = true }
 futures = { version = "0.3.19", optional = true }
 
 [dev-dependencies]
-simple_logger = { version = "1.15.1", default-features = false, features = ["colors"] }
+simple_logger = { version = "2.1.0", default-features = false, features = ["colors"] }
 futures = "0.3.8"
 rusqlite = { version = "0.26.0", features = ["bundled"] }
 
