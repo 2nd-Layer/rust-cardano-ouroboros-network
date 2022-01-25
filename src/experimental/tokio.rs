@@ -9,11 +9,13 @@ use byteorder::{ByteOrder, NetworkEndian};
 use crate::{
     Protocol,
     Agency,
+    protocols::handshake::HandshakeProtocol,
 };
 use std::{
-    time::{Instant},
+    time::{Instant, Duration},
     sync::{Arc, Weak},
     collections::HashMap,
+    net::ToSocketAddrs,
 };
 use tokio;
 use tokio::{
@@ -24,8 +26,6 @@ use tokio::{
     io::{AsyncWriteExt, AsyncReadExt},
 };
 use futures::Future;
-use std::net::ToSocketAddrs;
-use std::time::Duration;
 
 type Payload = Vec<u8>;
 type Sender<T> = mpsc::UnboundedSender<T>;
@@ -50,6 +50,7 @@ impl Drop for Demux {
 }
 
 pub struct Channel {
+    start_time: Instant,
     sender: Mutex<OwnedWriteHalf>,
     receiver: Arc<Mutex<OwnedReadHalf>>,
     subchannels: Subchannels,
@@ -60,11 +61,15 @@ impl Channel {
     pub fn new(stream: TcpStream) -> Channel {
         let (receiver, sender) = stream.into_split();
         Channel {
+            start_time: Instant::now(),
             sender: Mutex::new(sender),
             receiver: Arc::new(Mutex::new(receiver)),
             subchannels: Default::default(),
             demux: Default::default(),
         }
+    }
+    pub fn duration(&self) -> Duration {
+        self.start_time.elapsed()
     }
     pub fn execute<'a>(&'a mut self, protocol: &'a mut (dyn Protocol + Send))
         -> impl Future<Output=Result<(), Error>> + 'a
@@ -90,6 +95,13 @@ impl Channel {
             self.unregister(idx);
             Ok(())
         }
+    }
+    pub async fn handshake(&mut self, magic: u32) -> Result<(), Error> {
+        self.execute(&mut HandshakeProtocol::builder()
+            .client()
+            .node_to_node()
+            .network_magic(magic)
+            .build()?).await
     }
     fn register(&mut self, idx: u16) -> Receiver<Payload> {
         let (tx, rx) = mpsc::unbounded_channel();

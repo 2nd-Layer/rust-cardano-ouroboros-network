@@ -7,7 +7,7 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
 use cardano_ouroboros_network::{
     experimental::tokio::Channel,
-    protocols::handshake::{HandshakeProtocol, ConnectionType},
+    protocols::handshake::HandshakeProtocol,
     protocols::chainsync::{ChainSyncProtocol, Mode},
 };
 use std::{
@@ -41,11 +41,16 @@ async fn main() {
     let mut channel = Channel::new(stream);
 
     // Handshake
-    channel.execute(&mut HandshakeProtocol::new(magic, ConnectionType::Tcp)).await;
+    channel.execute(&mut HandshakeProtocol::builder()
+        .client()
+        .node_to_node()
+        .network_magic(magic)
+        .build()
+        .unwrap()).await.unwrap();
     channel.execute(&mut ChainSyncProtocol {
         mode: Mode::Sync,
         network_magic: magic,
         store: Some(Box::new(sqlite::SQLiteBlockStore::new(&cfg.db).unwrap())),
         ..Default::default()
-    }).await;
+    }).await.unwrap();
 }

@@ -16,6 +16,8 @@ use serde_cbor::{de, ser, Value, Value::*};
 
 use crate::{Agency, Protocol};
 
+type Error = String;
+
 const PROTOCOL_NODE_TO_NODE_V1: i128 = 0x01; // initial version
 const PROTOCOL_NODE_TO_NODE_V2: i128 = 0x02; // added local-query mini-protocol
 const PROTOCOL_NODE_TO_NODE_V3: i128 = 0x03;
@@ -46,38 +48,117 @@ pub enum State {
     Done,
 }
 
+#[deprecated(since="0.2.9", note="please use `HandshakeProtocol.builder()` instead")]
 #[derive(Debug, PartialEq)]
 pub enum ConnectionType {
     Tcp,
     Unix,
 }
 
+pub struct HandshakeBuilder {
+    role: Agency,
+    variant: Variant,
+    magic: u32,
+}
+
+#[derive(Clone, Copy)]
+enum Variant {
+    N2N,
+    C2N,
+}
+
+impl HandshakeBuilder {
+    pub fn network_magic(&mut self, magic: u32) -> &mut Self {
+        self.magic = magic;
+        self
+    }
+    pub fn client(&mut self) -> &mut Self {
+        self.role = Agency::Client;
+        self
+    }
+    pub fn server(&mut self) -> &mut Self {
+        self.role = Agency::Server;
+        self
+    }
+    pub fn client_to_node(&mut self) -> &mut Self {
+        self.variant = Variant::C2N;
+        self
+    }
+    pub fn node_to_node(&mut self) -> &mut Self {
+        self.variant = Variant::N2N;
+        self
+    }
+    pub fn build(&mut self) -> Result<HandshakeProtocol, Error> {
+        Ok(HandshakeProtocol {
+            role: self.role,
+            variant: self.variant,
+            network_magic: self.magic,
+            state: State::Propose,
+            result: None,
+        })
+    }
+}
+
 pub struct HandshakeProtocol {
     role: Agency,
+    variant: Variant,
     network_magic: u32,
     state: State,
-    connection_type: ConnectionType,
     result: Option<Result<String, String>>,
 }
 
 impl HandshakeProtocol {
-    pub fn new(network_magic: u32, connection_type: ConnectionType) -> Self {
-        HandshakeProtocol {
+    pub fn builder() -> HandshakeBuilder {
+        HandshakeBuilder {
             role: Agency::Client,
-            network_magic,
-            state: State::Propose,
-            connection_type,
-            result: None,
+            variant: Variant::N2N,
+            magic: 0,
         }
     }
 
-    pub fn expect(network_magic: u32, connection_type: ConnectionType) -> Self {
-        HandshakeProtocol {
-            role: Agency::Server,
-            network_magic,
-            state: State::Propose,
-            connection_type,
-            result: None,
+    #[deprecated(since="0.2.9", note="please use `HandshakeProtocol.builder()` instead")]
+    pub fn new(network_magic: u32, variant: ConnectionType) -> Self {
+        #![allow(deprecated)]
+        match variant {
+            ConnectionType::Tcp => {
+                Self::builder()
+                    .network_magic(network_magic)
+                    .client()
+                    .node_to_node()
+                    .build()
+                    .unwrap()
+            }
+            ConnectionType::Unix => {
+                Self::builder()
+                    .network_magic(network_magic)
+                    .client()
+                    .client_to_node()
+                    .build()
+                    .unwrap()
+            }
+        }
+    }
+
+    #[deprecated(since="0.2.9", note="please use `HandshakeProtocol.builder()` instead")]
+    pub fn expect(network_magic: u32, variant: ConnectionType) -> Self {
+        #![allow(deprecated)]
+        match variant {
+            ConnectionType::Tcp => {
+                Self::builder()
+                    .network_magic(network_magic)
+                    .server()
+                    .node_to_node()
+                    .build()
+                    .unwrap()
+            }
+            ConnectionType::Unix => {
+                Self::builder()
+                    .network_magic(network_magic)
+                    .server()
+                    .client_to_node()
+                    .build()
+                    .unwrap()
+            }
         }
     }
 
@@ -86,8 +167,8 @@ impl HandshakeProtocol {
     // Create the byte representation of MsgProposeVersions for sending to the server
     fn msg_propose_versions(&self, network_magic: u32) -> Vec<u8> {
         let mut payload_map: BTreeMap<Value, Value> = BTreeMap::new();
-        match self.connection_type {
-            ConnectionType::Tcp => {
+        match self.variant {
+            Variant::N2N => {
                 payload_map.insert(
                     Value::Integer(PROTOCOL_NODE_TO_NODE_V1),
                     Value::Integer(network_magic as i128),
@@ -129,7 +210,7 @@ impl HandshakeProtocol {
                     ]),
                 );
             }
-            ConnectionType::Unix => {
+            Variant::C2N => {
                 payload_map.insert(
                     Value::Integer(PROTOCOL_NODE_TO_CLIENT_V1),
                     Value::Integer(network_magic as i128),
@@ -231,9 +312,9 @@ impl HandshakeProtocol {
 
         let _accepted_protocol = match accepted_protocol_value {
             Value::Integer(accepted_protocol) => {
-                let required_min_protocol_version = match self.connection_type {
-                    ConnectionType::Tcp => MIN_NODE_TO_NODE_PROTOCOL_VERSION,
-                    ConnectionType::Unix => MIN_NODE_TO_CLIENT_PROTOCOL_VERSION,
+                let required_min_protocol_version = match self.variant {
+                    Variant::N2N => MIN_NODE_TO_NODE_PROTOCOL_VERSION,
+                    Variant::C2N => MIN_NODE_TO_CLIENT_PROTOCOL_VERSION,
                 };
                 if *accepted_protocol < required_min_protocol_version {
                     Err(format!(
@@ -402,7 +483,12 @@ mod tests {
     #[test]
     fn handshake_client_works() {
         let magic = 0xdddddddd;
-        let mut client = HandshakeProtocol::new(magic, ConnectionType::Tcp);
+        let mut client = HandshakeProtocol::builder()
+            .client()
+            .node_to_node()
+            .network_magic(magic)
+            .build()
+            .unwrap();
         assert_eq!(client.state, State::Propose);
         let data = client.send_data().unwrap();
         assert_eq!(client.state, State::Confirm);
@@ -414,7 +500,12 @@ mod tests {
     #[test]
     fn handshake_server_works() {
         let magic = 0xdddddddd;
-        let mut server = HandshakeProtocol::expect(magic, ConnectionType::Tcp);
+        let mut server = HandshakeProtocol::builder()
+            .server()
+            .node_to_node()
+            .network_magic(magic)
+            .build()
+            .unwrap();
         assert_eq!(server.state, State::Propose);
         server.receive_data(propose(magic));
         assert_eq!(server.state, State::Confirm);
