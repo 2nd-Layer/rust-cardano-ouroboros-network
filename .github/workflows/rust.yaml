@@ -28,9 +28,9 @@ jobs:
         toolchain: ${{ matrix.rust }}
         override: true
     - name: Build
-      run: cargo build --features experimental --verbose
+      run: cargo build --verbose
     - name: Build examples
-      run: cargo build --examples --features experimental --verbose
+      run: cargo build --examples --verbose
     - name: Run tests
       run: cargo test --verbose
 
