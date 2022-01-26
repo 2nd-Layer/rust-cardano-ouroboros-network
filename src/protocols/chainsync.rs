@@ -16,24 +16,43 @@ use std::{
 };
 
 use log::{debug, error, info, trace, warn};
-use serde_cbor::{de, Deserializer, ser, Value};
+use serde_cbor::{de, Value};
 
-use crate::{
-    Agency,
-    Protocol,
-    BlockStore,
-    BlockHeader,
-};
+use crate::{Agency, Protocol, Error};
+use crate::Message as MessageOps;
+use crate::{BlockStore, BlockHeader};
+use crate::mux::Connection;
 
 use blake2b_simd::Params;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum State {
     Idle,
     Intersect,
     CanAwait,
     MustReply,
     Done,
+}
+
+#[derive(Debug)]
+pub enum Message {
+    Array(Vec<Value>),
+}
+
+impl MessageOps for Message {
+    fn from_values(values: Vec<Value>) -> Result<Self, Error> {
+        Ok(Message::Array(values))
+    }
+
+    fn to_values(&self) -> Vec<Value> {
+        match self {
+            Message::Array(values) => values.clone(),
+        }
+    }
+
+    fn info(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
 #[derive(PartialEq)]
@@ -53,7 +72,7 @@ pub trait Listener : Send {
     fn handle_tip(&mut self, msg_roll_forward: &BlockHeader);
 }
 
-pub struct ChainSyncProtocol {
+pub struct ChainSync {
     pub mode: Mode,
     pub last_log_time: Instant,
     pub last_insert_time: Instant,
@@ -67,9 +86,9 @@ pub struct ChainSyncProtocol {
     pub notify: Option<Box<dyn Listener>>,
 }
 
-impl Default for ChainSyncProtocol {
+impl Default for ChainSync {
     fn default() -> Self {
-        ChainSyncProtocol {
+        ChainSync {
             mode: Mode::Sync,
             last_log_time: Instant::now().sub(Duration::from_secs(6)),
             last_insert_time: Instant::now(),
@@ -85,22 +104,25 @@ impl Default for ChainSyncProtocol {
     }
 }
 
-impl ChainSyncProtocol {
+impl ChainSync {
     const FIVE_SECS: Duration = Duration::from_secs(5);
+
+    pub async fn run(&mut self, connection: &mut Connection) -> Result<(), Error> {
+        connection.execute(self).execute().await
+    }
 
     fn save_block(&mut self, msg_roll_forward: &BlockHeader, is_tip: bool) -> io::Result<()> {
         match self.store.as_mut() {
             Some(store) => {
                 self.pending_blocks.push((*msg_roll_forward).clone());
 
-                if is_tip || self.last_insert_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
+                if is_tip || self.last_insert_time.elapsed() > ChainSync::FIVE_SECS {
                     store.save_block(&mut self.pending_blocks, self.network_magic)?;
                     self.last_insert_time = Instant::now();
                 }
             }
             None => {}
         }
-
         Ok(())
     }
 
@@ -116,33 +138,26 @@ impl ChainSyncProtocol {
         self.is_intersect_found = false;
     }
 
-    fn msg_find_intersect(&self, chain_blocks: Vec<(i64, Vec<u8>)>) -> Vec<u8> {
-
-        // figure out how to fix this extra clone later
-        let msg: Value = Value::Array(
-            vec![
-                Value::Integer(4), // message_id
-                // Value::Array(points),
-                Value::Array(chain_blocks.iter().map(|(slot, hash)| Value::Array(vec![Value::Integer(*slot as i128), Value::Bytes(hash.clone())])).collect())
-            ]
-        );
-
-        ser::to_vec_packed(&msg).unwrap()
+    fn msg_find_intersect(&self, chain_blocks: Vec<(i64, Vec<u8>)>) -> Message {
+        Message::Array(vec![
+            Value::Integer(4), // message_id
+            // Value::Array(points),
+            Value::Array(chain_blocks.iter().map(|(slot, hash)| Value::Array(vec![Value::Integer(*slot as i128), Value::Bytes(hash.clone())])).collect())
+        ])
     }
 
-    fn msg_request_next(&self) -> Vec<u8> {
+    fn msg_request_next(&self) -> Message {
         // we just send an array containing the message_id for this one.
-        ser::to_vec_packed(&Value::Array(vec![Value::Integer(0)])).unwrap()
+       Message::Array(vec![Value::Integer(0)])
     }
 }
 
-impl Protocol for ChainSyncProtocol {
-    fn protocol_id(&self) -> u16 {
-        return 0x0002u16;
-    }
+impl Protocol for ChainSync {
+    type State = State;
+    type Message = Message;
 
-    fn result(&self) -> Result<String, String> {
-        self.result.clone().unwrap()
+    fn protocol_id(&self) -> u16 {
+        0x0002
     }
 
     fn role(&self) -> Agency {
@@ -159,21 +174,21 @@ impl Protocol for ChainSyncProtocol {
         };
     }
 
-    fn state(&self) -> String {
-        format!("{:?}", self.state)
+    fn state(&self) -> Self::State {
+        self.state
     }
 
-    fn send_data(&mut self) -> Option<Vec<u8>> {
-        return match self.state {
+    fn send(&mut self) -> Result<Self::Message, Error> {
+        match self.state {
             State::Idle => {
-                trace!("ChainSyncProtocol::State::Idle");
+                trace!("ChainSync::State::Idle");
                 if !self.is_intersect_found {
                     let mut chain_blocks: Vec<(i64, Vec<u8>)> = vec![];
 
                     /* Classic sync: Use blocks from store if available. */
                     match self.store.as_mut() {
                         Some(store) => {
-                            let blocks = (*store).load_blocks()?;
+                            let blocks = (*store).load_blocks().ok_or("Can't load blocks.")?;
                             for (i, block) in blocks.iter().enumerate() {
                                 // all powers of 2 including 0th element 0, 2, 4, 8, 16, 32
                                 if (i == 0) || ((i > 1) && (i & (i - 1) == 0)) {
@@ -201,35 +216,20 @@ impl Protocol for ChainSyncProtocol {
                     trace!("intersect");
                     let payload = self.msg_find_intersect(chain_blocks);
                     self.state = State::Intersect;
-                    Some(payload)
+                    Ok(payload)
                 } else {
                     // request the next block from the server.
                     trace!("msg_request_next");
                     let payload = self.msg_request_next();
                     self.state = State::CanAwait;
-                    Some(payload)
+                    Ok(payload)
                 }
             }
-            State::Intersect => {
-                debug!("ChainSyncProtocol::State::Intersect");
-                None
-            }
-            State::CanAwait => {
-                debug!("ChainSyncProtocol::State::CanAwait");
-                None
-            }
-            State::MustReply => {
-                debug!("ChainSyncProtocol::State::MustReply");
-                None
-            }
-            State::Done => {
-                debug!("ChainSyncProtocol::State::Done");
-                None
-            }
-        };
+            state => Err(format!("Unsupported: {:?}", state)),
+        }
     }
 
-    fn receive_data(&mut self, data: Vec<u8>) {
+    fn recv(&mut self, message: Self::Message) -> Result<(), Error> {
         //msgRequestNext         = [0]
         //msgAwaitReply          = [1]
         //msgRollForward         = [2, wrappedHeader, tip]
@@ -239,96 +239,80 @@ impl Protocol for ChainSyncProtocol {
         //msgIntersectNotFound   = [6, tip]
         //chainSyncMsgDone       = [7]
 
-        let cbor_iter = Deserializer::from_slice(&data[..]).into_iter::<Value>();
-
-        for cbor_result in cbor_iter {
-            match cbor_result {
-                Ok(cbor_value) => {
-                    match cbor_value {
-                        Value::Array(cbor_array) => {
-                            match cbor_array[0] {
-                                Value::Integer(message_id) => {
-                                    match message_id {
-                                        1 => {
-                                            // Server wants us to wait a bit until it gets a new block
-                                            self.state = State::MustReply;
-                                        }
-                                        2 => {
-                                            // MsgRollForward
-                                            match parse_msg_roll_forward(cbor_array) {
-                                                None => { warn!("Probably a byron block. skipping...") }
-                                                Some((msg_roll_forward, tip)) => {
-                                                    let is_tip = msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash;
-                                                    trace!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
-                                                    if is_tip || self.last_log_time.elapsed() > ChainSyncProtocol::FIVE_SECS {
-                                                        if self.mode == Mode::Sync {
-                                                            info!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
-                                                        }
-                                                        self.last_log_time = Instant::now()
-                                                    }
-
-                                                    /* Classic sync: Store header data. */
-                                                    /* TODO: error handling */
-                                                    let _ = self.save_block(&msg_roll_forward, is_tip);
-
-                                                    if is_tip {
-                                                        /* Got complete tip header. */
-                                                        self.notify_tip(&msg_roll_forward);
-                                                    } else {
-                                                        match self.mode {
-                                                            /* Next time get tip header. */
-                                                            Mode::SendTip => self.jump_to_tip(tip),
-                                                            _ => {}
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            self.state = State::Idle;
-
-                                            // testing only so we sync only a single block
-                                            // self.state = State::Done;
-                                            // self.result = Some(Ok(String::from("Done")))
-                                        }
-                                        3 => {
-                                            // MsgRollBackward
-                                            let slot = parse_msg_roll_backward(cbor_array);
-                                            warn!("rollback to slot: {}", slot);
-                                            self.state = State::Idle;
-                                        }
-                                        5 => {
-                                            debug!("MsgIntersectFound: {:?}", cbor_array);
-                                            self.is_intersect_found = true;
-                                            self.state = State::Idle;
-                                        }
-                                        6 => {
-                                            warn!("MsgIntersectNotFound: {:?}", cbor_array);
-                                            self.is_intersect_found = true; // should start syncing at first byron block. We will just skip all byron blocks.
-                                            self.state = State::Idle;
-                                        }
-                                        7 => {
-                                            warn!("MsgDone: {:?}", cbor_array);
-                                            self.state = State::Done;
-                                            self.result = Some(Ok(String::from("Done")))
-                                        }
-                                        _ => {
-                                            error!("Got unexpected message_id: {}", message_id);
-                                        }
+        let Message::Array(cbor_array) = message;
+        match cbor_array[0] {
+            Value::Integer(message_id) => {
+                match message_id {
+                    1 => {
+                        // Server wants us to wait a bit until it gets a new block
+                        self.state = State::MustReply;
+                    }
+                    2 => {
+                        // MsgRollForward
+                        match parse_msg_roll_forward(cbor_array) {
+                            None => { warn!("Probably a byron block. skipping...") }
+                            Some((msg_roll_forward, tip)) => {
+                                let is_tip = msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash;
+                                trace!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
+                                if is_tip || self.last_log_time.elapsed() > ChainSync::FIVE_SECS {
+                                    if self.mode == Mode::Sync {
+                                        info!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
                                     }
+                                    self.last_log_time = Instant::now()
                                 }
-                                _ => {
-                                    error!("Unexpected cbor!")
+
+                                /* Classic sync: Store header data. */
+                                /* TODO: error handling */
+                                let _ = self.save_block(&msg_roll_forward, is_tip);
+
+                                if is_tip {
+                                    /* Got complete tip header. */
+                                    self.notify_tip(&msg_roll_forward);
+                                } else {
+                                    match self.mode {
+                                        /* Next time get tip header. */
+                                        Mode::SendTip => self.jump_to_tip(tip),
+                                        _ => {}
+                                    }
                                 }
                             }
                         }
-                        _ => {
-                            error!("Unexpected cbor!")
-                        }
+
+                        self.state = State::Idle;
+
+                        // testing only so we sync only a single block
+                        // self.state = State::Done;
+                    }
+                    3 => {
+                        // MsgRollBackward
+                        let slot = parse_msg_roll_backward(cbor_array);
+                        warn!("rollback to slot: {}", slot);
+                        self.state = State::Idle;
+                    }
+                    5 => {
+                        debug!("MsgIntersectFound: {:?}", cbor_array);
+                        self.is_intersect_found = true;
+                        self.state = State::Idle;
+                    }
+                    6 => {
+                        warn!("MsgIntersectNotFound: {:?}", cbor_array);
+                        self.is_intersect_found = true; // should start syncing at first byron block. We will just skip all byron blocks.
+                        self.state = State::Idle;
+                    }
+                    7 => {
+                        warn!("MsgDone: {:?}", cbor_array);
+                        self.state = State::Done;
+                    }
+                    _ => {
+                        error!("Got unexpected message_id: {}", message_id);
                     }
                 }
-                Err(err) => { error!("cbor decode error!: {}, hex: {}", err, hex::encode(&data)) }
+            }
+            _ => {
+                error!("Unexpected cbor!")
             }
         }
+        Ok(())
     }
 }
 

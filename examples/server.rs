@@ -6,44 +6,43 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 */
 
 use cardano_ouroboros_network::{
-    mux::connection::Channel,
+    mux::Connection,
     protocols::{
         handshake,
-        pingpong,
     },
 };
-use std::net::{TcpListener, TcpStream};
-use log::{info, error};
-use futures::executor::block_on;
-use cardano_ouroboros_network::mux::connection::Stream::Tcp;
+use tokio::net::{TcpListener, TcpStream};
+use log::info;
 
 mod common;
 
-fn main() {
+async fn serve() {
     let cfg = common::init();
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", cfg.port)).unwrap();
-
-    for stream in listener.incoming() {
-        match handle(stream.unwrap(), &cfg) {
-            Ok(_) => info!("connection closed"),
-            Err(e) => error!("connection failed: {}", e),
-        }
+    let listener = TcpListener::bind("127.0.0.1:3001").await.unwrap();
+    loop {
+        let (socket, _addr) = listener.accept().await.unwrap();
+        handle(socket, &cfg).await.unwrap();
     }
 }
 
 type Error = Box<dyn std::error::Error>;
 
-fn handle(stream: TcpStream, cfg: &common::Config) -> Result<(), Error> {
-    let channel = Channel::new(Tcp(stream));
-
+async fn handle(stream: TcpStream, cfg: &common::Config) -> Result<(), Error> {
     info!("new client!");
-    block_on(async {
-        channel.execute(handshake::HandshakeProtocol::builder()
-            .server()
-            .node_to_node()
-            .network_magic(cfg.magic)
-            .build()?).await?;
-        channel.execute(pingpong::PingPongProtocol::expect(0x0100)).await?;
-        Ok(())
-    })
+
+    let mut connection = Connection::from_tcp_stream(stream);
+
+    handshake::Handshake::builder()
+        .server()
+        .node_to_node()
+        .network_magic(cfg.magic)
+        .build()?
+        .run(&mut connection).await?;
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+    serve().await;
 }

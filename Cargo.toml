@@ -16,7 +16,6 @@ categories = ["network-programming"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-experimental = ["tokio", "futures"]
 
 [dependencies]
 blake2b_simd = "1.0.0"
@@ -30,11 +29,10 @@ serde = { version = "1.0.117", features = ["derive"] }
 serde_cbor = "0.11.1"
 serde_json = "1.0.59"
 log = "0.4.11"
-tokio = { version = "1.15.0", features = ["full"], optional = true }
-futures = { version = "0.3.19", optional = true }
+tokio = { version = "1.15.0", features = ["full"]}
 
 [dev-dependencies]
-simple_logger = { version = "2.1.0", default-features = false, features = ["colors"] }
+env_logger = "0.9.0"
 futures = "0.3.8"
 rusqlite = { version = "0.26.0", features = ["bundled"] }
 
@@ -49,7 +47,3 @@ crate-type = ["staticlib"]
 [[example]]
 name = "pooltool"
 crate-type = ["staticlib"]
-
-[[example]]
-name = "async"
-required-features = ["experimental"]
