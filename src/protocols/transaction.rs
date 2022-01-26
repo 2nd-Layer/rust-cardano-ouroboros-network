@@ -31,8 +31,8 @@ pub enum Message {
 }
 
 impl MessageOps for Message {
-    fn from_values(values: Vec<Value>) -> Self {
-        Message::Array(values)
+    fn from_values(values: Vec<Value>) -> Result<Self, Error> {
+        Ok(Message::Array(values))
     }
 
     fn to_values(&self) -> Vec<Value> {

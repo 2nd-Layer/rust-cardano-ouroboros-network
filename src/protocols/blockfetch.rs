@@ -24,16 +24,16 @@ pub enum Message {
 }
 
 impl MessageOps for Message {
-    fn from_values(array: Vec<Value>) -> Self {
+    fn from_values(array: Vec<Value>) -> Result<Self, Error> {
         let mut values = array.iter();
         //debug!("Parsing message: {:?}", values);
-        let message = match values.next().unwrap() {
+        let message = match values.next().ok_or("Unexpected end of message.".to_string())? {
             //Value::Integer(0) => Message::RequestRange(),
             Value::Integer(1) => Message::ClientDone,
             Value::Integer(2) => Message::StartBatch,
             Value::Integer(3) => Message::NoBlocks,
             Value::Integer(4) => {
-                match values.next().unwrap() {
+                match values.next().ok_or("Unexpected End of message.".to_string())? {
                     Value::Bytes(bytes) => {
                         Message::Block(bytes.to_vec())
                     }
@@ -44,9 +44,9 @@ impl MessageOps for Message {
             _ => panic!()
         };
         match values.next() {
-            Some(Value::Null) => message,
-            Some(data) => panic!("data={:?}", data),
-            None => message,
+            Some(Value::Null) => Ok(message),
+            Some(data) => Err(format!("data={:?}", data)),
+            None => Ok(message),
         }
     }
 

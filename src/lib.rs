@@ -22,8 +22,8 @@ use log::debug;
 //
 type Error = String;
 
-pub trait Message: std::fmt::Debug {
-    fn from_values(array: Vec<Value>) -> Self;
+pub trait Message: std::fmt::Debug + Sized {
+    fn from_values(array: Vec<Value>) -> Result<Self, Error>;
     fn to_values(&self) -> Vec<Value>;
     fn info(&self) -> String;
 
@@ -78,7 +78,7 @@ pub trait Protocol {
         while let Some(chunk) = d.next() {
             match chunk {
                 Ok(values) => {
-                    let message = Self::Message::from_values(values);
+                    let message = Self::Message::from_values(values).unwrap();
                     let info = message.info();
                     self.recv(message).unwrap();
                     debug!("Rx: message {}", info);
