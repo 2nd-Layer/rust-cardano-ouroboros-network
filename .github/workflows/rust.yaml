@@ -11,12 +11,12 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    name: Build Rust with Cargo
+  build-linux:
+    name: Build Rust with Cargo on Linux
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest, windows-2022, macos-11]
+        os: [windows-latest, ubuntu-latest]
         rust: [stable, nightly]
     runs-on: ${{ matrix.os }}
 
@@ -28,16 +28,62 @@ jobs:
         toolchain: ${{ matrix.rust }}
         override: true
     - name: Build
-      run: cargo build --features experimental --verbose
+      run: cargo build --verbose
     - name: Build examples
-      run: cargo build --examples --features experimental --verbose
+      run: cargo build --examples --verbose
+    - name: Run tests
+      run: cargo test --verbose
+
+  build-macos:
+    name: Build Rust with Cargo on Mac OS X
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-2022, macos-11]
+        rust: [stable, nightly]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        override: true
+    - name: Build
+      run: cargo build --verbose
+    - name: Build examples
+      run: cargo build --examples --verbose
+    - name: Run tests
+      run: cargo test --verbose
+
+  build-windows:
+    name: Build Rust with Cargo on Windows
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-latest]
+        rust: [stable, nightly]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        override: true
+    - name: Build
+      run: cargo build --verbose
+    - name: Build examples
+      run: cargo build --examples --verbose
     - name: Run tests
       run: cargo test --verbose
 
   build_success:
-    name: Build Rust with Cargo - All environments
+    name: Build Rust with Cargo - Linux and Mac OS X
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build-linux, build-macos]
     steps:
     - run: echo Done!
 
