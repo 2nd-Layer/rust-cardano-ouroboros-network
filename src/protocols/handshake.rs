@@ -85,22 +85,27 @@ impl HandshakeBuilder {
         self.magic = magic;
         self
     }
+
     pub fn client(&mut self) -> &mut Self {
         self.role = Agency::Client;
         self
     }
+
     pub fn server(&mut self) -> &mut Self {
         self.role = Agency::Server;
         self
     }
+
     pub fn client_to_node(&mut self) -> &mut Self {
         self.variant = Variant::C2N;
         self
     }
+
     pub fn node_to_node(&mut self) -> &mut Self {
         self.variant = Variant::N2N;
         self
     }
+
     pub fn build(&mut self) -> Result<Handshake, Error> {
         Ok(Handshake {
             role: self.role,
