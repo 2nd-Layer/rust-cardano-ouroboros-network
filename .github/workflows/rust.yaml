@@ -83,7 +83,7 @@ jobs:
   build_success:
     name: Build Rust with Cargo - All environments
     runs-on: ubuntu-latest
-    needs: build-linux
+    needs: [build-linux, build-macos]
     steps:
     - run: echo Done!
 
