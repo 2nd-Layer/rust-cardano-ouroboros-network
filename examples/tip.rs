@@ -8,7 +8,7 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 use cardano_ouroboros_network::{
     mux::Connection,
     BlockHeader,
-    protocols::chainsync::{ChainSyncProtocol, Mode, Listener},
+    protocols::chainsync::{ChainSync, Mode, Listener},
 };
 use log::info;
 
@@ -22,16 +22,24 @@ impl Listener for Handler {
     }
 }
 
-#[tokio::main]
-async fn main() {
+async fn tip() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = common::init();
 
-    let mut connection = Connection::tcp_connect(&cfg.host).await.unwrap();
-    connection.handshake(cfg.magic).await.unwrap();
-    connection.execute(&mut ChainSyncProtocol {
+    let mut connection = Connection::tcp_connect(&cfg.host).await?;
+    connection.handshake(cfg.magic).await?;
+
+    let mut chainsync = ChainSync {
         mode: Mode::SendTip,
         network_magic: cfg.magic,
         notify: Some(Box::new(Handler {})),
         ..Default::default()
-    }).await.unwrap();
+    };
+
+    chainsync.run(&mut connection).await?;
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+    tip().await.unwrap();
 }

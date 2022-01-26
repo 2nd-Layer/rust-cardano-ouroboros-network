@@ -12,11 +12,10 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 use std::collections::BTreeMap;
 
 use log::debug;
-use serde_cbor::{de, ser, Value, Value::*};
-
-use crate::{Agency, Protocol};
-
-type Error = String;
+use serde_cbor::{Value, Value::*};
+use crate::{Agency, Protocol, Error};
+use crate::Message as MessageOps;
+use crate::mux::Connection;
 
 const PROTOCOL_NODE_TO_NODE_V1: i128 = 0x01; // initial version
 const PROTOCOL_NODE_TO_NODE_V2: i128 = 0x02; // added local-query mini-protocol
@@ -41,18 +40,32 @@ const MIN_NODE_TO_CLIENT_PROTOCOL_VERSION: i128 = PROTOCOL_NODE_TO_CLIENT_V9;
 
 const MSG_ACCEPT_VERSION_MSG_ID: i128 = 1;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum State {
     Propose,
     Confirm,
     Done,
 }
 
-#[deprecated(since="0.2.9", note="please use `HandshakeProtocol.builder()` instead")]
-#[derive(Debug, PartialEq)]
-pub enum ConnectionType {
-    Tcp,
-    Unix,
+#[derive(Debug)]
+pub enum Message {
+    Array(Vec<Value>),
+}
+
+impl MessageOps for Message {
+    fn from_values(values: Vec<Value>) -> Self {
+        Message::Array(values)
+    }
+
+    fn to_values(&self) -> Vec<Value> {
+        match self {
+            Message::Array(values) => values.clone(),
+        }
+    }
+
+    fn info(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
 pub struct HandshakeBuilder {
@@ -88,26 +101,24 @@ impl HandshakeBuilder {
         self.variant = Variant::N2N;
         self
     }
-    pub fn build(&mut self) -> Result<HandshakeProtocol, Error> {
-        Ok(HandshakeProtocol {
+    pub fn build(&mut self) -> Result<Handshake, Error> {
+        Ok(Handshake {
             role: self.role,
             variant: self.variant,
             network_magic: self.magic,
             state: State::Propose,
-            result: None,
         })
     }
 }
 
-pub struct HandshakeProtocol {
+pub struct Handshake {
     role: Agency,
     variant: Variant,
     network_magic: u32,
     state: State,
-    result: Option<Result<String, String>>,
 }
 
-impl HandshakeProtocol {
+impl Handshake {
     pub fn builder() -> HandshakeBuilder {
         HandshakeBuilder {
             role: Agency::Client,
@@ -116,56 +127,14 @@ impl HandshakeProtocol {
         }
     }
 
-    #[deprecated(since="0.2.9", note="please use `HandshakeProtocol.builder()` instead")]
-    pub fn new(network_magic: u32, variant: ConnectionType) -> Self {
-        #![allow(deprecated)]
-        match variant {
-            ConnectionType::Tcp => {
-                Self::builder()
-                    .network_magic(network_magic)
-                    .client()
-                    .node_to_node()
-                    .build()
-                    .unwrap()
-            }
-            ConnectionType::Unix => {
-                Self::builder()
-                    .network_magic(network_magic)
-                    .client()
-                    .client_to_node()
-                    .build()
-                    .unwrap()
-            }
-        }
-    }
-
-    #[deprecated(since="0.2.9", note="please use `HandshakeProtocol.builder()` instead")]
-    pub fn expect(network_magic: u32, variant: ConnectionType) -> Self {
-        #![allow(deprecated)]
-        match variant {
-            ConnectionType::Tcp => {
-                Self::builder()
-                    .network_magic(network_magic)
-                    .server()
-                    .node_to_node()
-                    .build()
-                    .unwrap()
-            }
-            ConnectionType::Unix => {
-                Self::builder()
-                    .network_magic(network_magic)
-                    .server()
-                    .client_to_node()
-                    .build()
-                    .unwrap()
-            }
-        }
+    pub async fn run(&mut self, connection: &mut Connection) -> Result<(), Error> {
+        connection.execute(self).execute().await
     }
 
     // Serialize cbor for MsgProposeVersions
     //
     // Create the byte representation of MsgProposeVersions for sending to the server
-    fn msg_propose_versions(&self, network_magic: u32) -> Vec<u8> {
+    fn msg_propose_versions(&self, network_magic: u32) -> Vec<Value> {
         let mut payload_map: BTreeMap<Value, Value> = BTreeMap::new();
         match self.variant {
             Variant::N2N => {
@@ -249,13 +218,10 @@ impl HandshakeProtocol {
                 );
             }
         }
-
-        let message = Value::Array(vec![
+        vec![
             Value::Integer(0), // message_id
             Value::Map(payload_map),
-        ]);
-
-        ser::to_vec_packed(&message).unwrap()
+        ]
     }
 
     // Search through the cbor values until we find a Text value.
@@ -277,15 +243,11 @@ impl HandshakeProtocol {
         return Err(());
     }
 
-    fn validate_data(&self, confirm: Value, hex_data: String) -> Result<String, String> {
-        let confirm_vec = match &confirm {
-            Value::Array(confirm_vec) => Ok(confirm_vec),
-            _ => Err(format!("Error, expected cbor array! {}", hex_data)),
-        }?;
-
+    fn validate_data(&self, confirm: Message) -> Result<(), String> {
+        let Message::Array(confirm_vec) = confirm;
         let msg_type = match confirm_vec.get(0) {
             Some(msg_type) => Ok(msg_type),
-            None => Err(format!("Error, unable to parse msg_type! {}", hex_data)),
+            None => Err(format!("Error, unable to parse msg_type!")),
         }?;
 
         let _msg_type_int = match msg_type {
@@ -293,20 +255,19 @@ impl HandshakeProtocol {
                 if *msg_type_int == MSG_ACCEPT_VERSION_MSG_ID {
                     Ok(msg_type_int)
                 } else {
-                    match self.find_error_message(&confirm) {
+                    match self.find_error_message(&Value::Array(confirm_vec.clone())) {
                         Ok(error_message) => Err(error_message),
-                        Err(_) => Err(format!("Unable to parse error message! {}", hex_data)),
+                        Err(_) => Err(format!("Unable to parse error message!")),
                     }
                 }
             }
-            _ => Err(format!("Error msg_type is not an integer! {}", hex_data)),
+            _ => Err(format!("Error msg_type is not an integer!")),
         }?;
 
         let accepted_protocol_value = match confirm_vec.get(1) {
             Some(accepted_protocol_value) => Ok(accepted_protocol_value),
             None => Err(format!(
-                "Error, unable to parse accepted protocol! {}",
-                hex_data
+                "Error, unable to parse accepted protocol!"
             )),
         }?;
 
@@ -326,16 +287,14 @@ impl HandshakeProtocol {
                 }
             }
             _ => Err(format!(
-                "Error, accepted protocol is not an integer! {}",
-                hex_data
+                "Error, accepted protocol is not an integer!"
             )),
         }?;
 
         let accepted_vec_value = match confirm_vec.get(2) {
             Some(accepted_vec_value) => Ok(accepted_vec_value),
             None => Err(format!(
-                "Error, unable to parse accepted vec value! {}",
-                hex_data
+                "Error, unable to parse accepted vec value!",
             )),
         }?;
 
@@ -343,14 +302,12 @@ impl HandshakeProtocol {
             Value::Array(accepted_vec) => match accepted_vec.get(0) {
                 Some(accepted_magic_value) => Ok(accepted_magic_value),
                 None => Err(format!(
-                    "Error, unable to parse accepted magic value! {}",
-                    hex_data
+                    "Error, unable to parse accepted magic value!",
                 )),
             },
             Value::Integer(_accepted_magic_value) => Ok(accepted_vec_value),
             _ => Err(format!(
-                "Error, accepted_vec_value was not an array or integer! {}",
-                hex_data
+                "Error, accepted_vec_value was not an array or integer!",
             )),
         }?;
 
@@ -366,16 +323,18 @@ impl HandshakeProtocol {
                 }
             }
             _ => Err(format!(
-                "Error, accepted magic value was not an integer! {}",
-                hex_data
+                "Error, accepted magic value was not an integer!"
             )),
         }?;
 
-        return Ok(hex_data);
+        return Ok(());
     }
 }
 
-impl Protocol for HandshakeProtocol {
+impl Protocol for Handshake {
+    type State = State;
+    type Message = Message;
+
     fn protocol_id(&self) -> u16 {
         let idx: u16 = 0;
         match self.role {
@@ -383,10 +342,6 @@ impl Protocol for HandshakeProtocol {
             Agency::Server => idx ^ 0x8000,
             _ => panic!("unknown role"),
         }
-    }
-
-    fn result(&self) -> Result<String, String> {
-        self.result.clone().unwrap_or(Err("no result".to_string()))
     }
 
     fn role(&self) -> Agency {
@@ -401,60 +356,57 @@ impl Protocol for HandshakeProtocol {
         };
     }
 
-    fn state(&self) -> String {
-        format!("{:?}", self.state)
+    fn state(&self) -> Self::State {
+        self.state
     }
 
-    fn send_data(&mut self) -> Option<Vec<u8>> {
+    fn send(&mut self) -> Result<Message, Error> {
         debug!("send: {:?}", self.state);
         match self.state {
             State::Propose => {
                 let payload = self.msg_propose_versions(self.network_magic);
                 self.state = State::Confirm;
-                Some(payload)
+                Ok(Message::Array(payload))
             }
             State::Confirm => {
                 /* TODO: [stub] implement proper negotiation, we now use fixed protocol version */
-                self.result = Some(Ok("confirmed".to_string()));
                 self.state = State::Done;
-                Some(
-                    ser::to_vec(&Array(vec![
-                        Integer(1),
-                        Integer(6),
-                        Array(vec![Integer(self.network_magic.into()), Bool(false)]),
-                    ]))
-                    .unwrap(),
-                )
+                Ok(Message::Array(vec![
+                    Integer(1),
+                    Integer(6),
+                    Array(vec![Integer(self.network_magic.into()), Bool(false)]),
+                ]))
             }
             State::Done => panic!("unexpected send"),
         }
     }
 
-    fn receive_data(&mut self, data: Vec<u8>) {
+    fn recv(&mut self, message: Message) -> Result<(), Error> {
         debug!("recv: {:?}", self.state);
         match self.state {
             State::Propose => {
                 self.state = State::Confirm;
             }
             State::Confirm => {
-                let confirm: Value = de::from_slice(&data[..]).unwrap();
-                debug!("Confirm: {:?}", &confirm);
-                self.result = Some(self.validate_data(confirm, hex::encode(data)));
+                debug!("Confirm: {:?}", message);
+                self.validate_data(message)?;
                 self.state = State::Done;
             }
             State::Done => panic!("unexpected recv"),
         }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::assert_eq;
+    use serde_cbor::to_vec;
 
     use super::*;
 
     fn propose(magic: u32) -> Vec<u8> {
-        ser::to_vec(&Array(vec![
+        to_vec(&Array(vec![
             Integer(0),
             Map(vec![
                 (Integer(1), magic.into()),
@@ -472,7 +424,7 @@ mod tests {
     }
 
     fn confirm(magic: u32) -> Vec<u8> {
-        ser::to_vec(&Array(vec![
+        to_vec(&Array(vec![
             Integer(1),
             Integer(6),
             Array(vec![Integer(magic.into()), Bool(false)]),
@@ -483,33 +435,33 @@ mod tests {
     #[test]
     fn handshake_client_works() {
         let magic = 0xdddddddd;
-        let mut client = HandshakeProtocol::builder()
+        let mut client = Handshake::builder()
             .client()
             .node_to_node()
             .network_magic(magic)
             .build()
             .unwrap();
         assert_eq!(client.state, State::Propose);
-        let data = client.send_data().unwrap();
+        let data = client.send_bytes().unwrap();
         assert_eq!(client.state, State::Confirm);
         assert_eq!(data, propose(magic));
-        client.receive_data(confirm(magic));
+        client.receive_bytes(confirm(magic));
         assert_eq!(client.state, State::Done);
     }
 
     #[test]
     fn handshake_server_works() {
         let magic = 0xdddddddd;
-        let mut server = HandshakeProtocol::builder()
+        let mut server = Handshake::builder()
             .server()
             .node_to_node()
             .network_magic(magic)
             .build()
             .unwrap();
         assert_eq!(server.state, State::Propose);
-        server.receive_data(propose(magic));
+        server.receive_bytes(propose(magic));
         assert_eq!(server.state, State::Confirm);
-        let data = server.send_data().unwrap();
+        let data = server.send_bytes().unwrap();
         assert_eq!(server.state, State::Done);
         assert_eq!(data, confirm(magic));
     }

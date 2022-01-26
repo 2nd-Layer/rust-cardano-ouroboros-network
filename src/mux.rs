@@ -9,7 +9,7 @@ use byteorder::{ByteOrder, NetworkEndian};
 use crate::{
     Protocol,
     Agency,
-    protocols::handshake::HandshakeProtocol,
+    protocols::handshake::Handshake,
 };
 use std::{
     io,
@@ -26,7 +26,6 @@ use tokio::{
     io::{AsyncRead, AsyncWrite, AsyncWriteExt, AsyncReadExt},
 };
 use log::trace;
-use std::future::Future;
 
 #[cfg(target_family = "unix")]
 use tokio::net::UnixStream;
@@ -106,44 +105,28 @@ impl Connection {
         self.start_time.elapsed()
     }
 
-    pub fn execute<'a>(&'a mut self, protocol: &'a mut (dyn Protocol + Send))
-        -> impl Future<Output=Result<(), Error>> + 'a
+    pub(crate) fn execute<'a, P>(&'a mut self, protocol: &'a mut P) -> Channel<'a, P>
+    where
+        P: Protocol,
     {
-        // Register queue before returning from function.
-        let idx = protocol.protocol_id();
-        let mut receiver = self.register(idx);
-        // Return async block that actually executes the protocol.
-        async move {
-            let _demux = self.run_demux();
-
-            loop {
-                let agency = protocol.agency();
-                if agency == Agency::None { break }
-                let role = protocol.role();
-                if agency == role {
-                    self.send(idx, &protocol.send_data().unwrap()).await;
-                } else {
-                    protocol.receive_data(self.recv(&mut receiver).await);
-                }
-            }
-
-            self.unregister(idx);
-            Ok(())
-        }
+        Channel::new(protocol, self)
     }
     pub async fn handshake(&mut self, magic: u32) -> Result<(), Error> {
-        self.execute(&mut HandshakeProtocol::builder()
+        Handshake::builder()
             .client()
             .node_to_node()
             .network_magic(magic)
-            .build()?).await
+            .build()?
+            .run(self).await
     }
     fn register(&mut self, idx: u16) -> Receiver<Payload> {
+        trace!("Registering protocol {}.", idx);
         let (tx, rx) = mpsc::unbounded_channel();
         self.channels.lock().unwrap().insert(idx, tx);
         rx
     }
     fn unregister(&mut self, idx: u16) {
+        trace!("Unregistering protocol {}.", idx);
         self.channels.lock().unwrap().remove(&idx);
     }
     async fn send(&self, idx: u16, payload: &[u8]) {
@@ -183,5 +166,59 @@ impl Connection {
                 demux
             }
         }
+    }
+}
+
+pub(crate) struct Channel<'a, P: Protocol> {
+    idx: u16,
+    receiver: Receiver<Payload>,
+    pub(crate) protocol: &'a mut P,
+    connection: &'a mut Connection,
+    _demux: Arc<Demux>,
+    bytes: Vec<u8>,
+}
+
+impl<'a, P: Protocol> Channel<'_, P> {
+    fn new(protocol: &'a mut P, connection: &'a mut Connection) -> Channel<'a, P> {
+        let idx = protocol.protocol_id();
+        let receiver = connection.register(idx);
+        let demux = connection.run_demux();
+        Channel {
+            idx,
+            receiver,
+            protocol,
+            connection,
+            _demux: demux,
+            bytes: Vec::new(),
+        }
+    }
+
+    pub(crate) async fn execute(&mut self) -> Result<(), Error> {
+        trace!("Executing protocol {}.", self.idx);
+        loop {
+            let agency = self.protocol.agency();
+            if agency == Agency::None {
+                break;
+            }
+            let role = self.protocol.role();
+            if agency == role {
+                self.connection.send(self.idx, &self.protocol.send_bytes().unwrap()).await;
+            } else {
+                let mut bytes = std::mem::replace(&mut self.bytes, Vec::new());
+                let new_data = self.connection.recv(&mut self.receiver).await;
+                bytes.extend(new_data);
+                self.bytes = self.protocol.receive_bytes(bytes).unwrap_or(Box::new([])).into_vec();
+                if !self.bytes.is_empty() {
+                    trace!("Keeping {} bytes for the next frame.", self.bytes.len());
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'a, P: Protocol> Drop for Channel<'_, P> {
+    fn drop(&mut self) {
+        self.connection.unregister(self.idx);
     }
 }

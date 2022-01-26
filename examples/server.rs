@@ -9,7 +9,6 @@ use cardano_ouroboros_network::{
     mux::Connection,
     protocols::{
         handshake,
-        pingpong,
     },
 };
 use tokio::net::{TcpListener, TcpStream};
@@ -32,12 +31,14 @@ async fn handle(stream: TcpStream, cfg: &common::Config) -> Result<(), Error> {
     info!("new client!");
 
     let mut connection = Connection::from_tcp_stream(stream);
-    connection.execute(&mut handshake::HandshakeProtocol::builder()
+
+    handshake::Handshake::builder()
         .server()
         .node_to_node()
         .network_magic(cfg.magic)
-        .build()?).await?;
-    connection.execute(&mut pingpong::PingPongProtocol::expect(0x0100)).await?;
+        .build()?
+        .run(&mut connection).await?;
+
     Ok(())
 }
 

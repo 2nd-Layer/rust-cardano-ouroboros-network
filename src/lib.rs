@@ -13,29 +13,92 @@ pub mod mux;
 pub mod protocols;
 
 use std::io;
+use serde_cbor::{Value, de::Deserializer, to_vec};
+use log::debug;
+
+//
+// Error will be string for now. But please use `Result<_, dyn error::Error` if you want to stay
+// compatible.
+//
+type Error = String;
+
+pub trait Message: std::fmt::Debug {
+    fn from_values(array: Vec<Value>) -> Self;
+    fn to_values(&self) -> Vec<Value>;
+    fn info(&self) -> String;
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let values = self.to_values();
+        debug!("Tx: message {:?}", values);
+        to_vec(&values).unwrap()
+    }
+}
 
 pub trait Protocol {
-    // Each protocol has a unique hardcoded id
+    type State: std::fmt::Debug;
+    type Message: Message;
+
+    //
+    // Static information
+    //
     fn protocol_id(&self) -> u16;
 
-    // Each protocol can provide a result
-    fn result(&self) -> Result<String, String>;
-
-    // We have a client or server role in the protocol
+    //
+    // Runtime information
+    //
     fn role(&self) -> Agency;
-
-    // Tells us what agency state the protocol is in
+    fn state(&self) -> Self::State;
     fn agency(&self) -> Agency;
 
-    // Printable version of the state for the Protocol
-    fn state(&self) -> String;
+    //
+    // Communication
+    //
+    fn send(&mut self) -> Result<Self::Message, Error>;
+    fn recv(&mut self, message: Self::Message) -> Result<(), Error>;
 
-    // Fetch the next piece of data this protocol wants to send, or None if the client doesn't
-    // have agency.
-    fn send_data(&mut self) -> Option<Vec<u8>>;
+    //
+    // Binary data 
+    //
 
-    // Process data received from the remote server destined for this protocol
-    fn receive_data(&mut self, data: Vec<u8>);
+    fn send_bytes(&mut self) -> Option<Vec<u8>> {
+        assert_eq!(self.agency(), self.role());
+        // TODO: Protocol should really return an error.
+        let message = self.send().unwrap();
+        let bytes = message.to_bytes();
+        debug!("State: {:?}", self.state());
+        Some(bytes)
+    }
+
+    fn receive_bytes(&mut self, data: Vec<u8>) -> Option<Box<[u8]>> {
+        //debug!("Received data length={}", data.len());
+        debug!("receive_bytes {:?}", data.chunks(32).next());
+        let mut d = Deserializer::from_slice(&data).into_iter::<Vec<Value>>();
+        debug!("----");
+        let mut last_offset = 0;
+        while let Some(chunk) = d.next() {
+            match chunk {
+                Ok(values) => {
+                    let message = Self::Message::from_values(values);
+                    let info = message.info();
+                    self.recv(message).unwrap();
+                    debug!("Rx: message {}", info);
+                    debug!("State: {:?}", self.state());
+                    debug!("Demux offset: {}", d.byte_offset());
+                    last_offset = d.byte_offset();
+                }
+                Err(e) => {
+                    match e.is_eof() {
+                        true => {
+                            return Some(Box::from(&data[last_offset..]));
+                        }
+                        false => panic!("Error: {:?}", e),
+                    }
+                }
+            }
+        }
+        assert_eq!(d.byte_offset(), data.len());
+        None
+    }
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]

@@ -9,13 +9,13 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
 */
 
+use crate::{Agency, Protocol, Error};
+use crate::Message as MessageOps;
 use byteorder::WriteBytesExt;
-use log::{debug, error, warn};
-use serde_cbor::{de, Value};
+use log::{debug, error};
+use serde_cbor::{Value, to_vec};
 
-use crate::{Agency, Protocol};
-
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum State {
     Idle,
     TxIdsBlocking,
@@ -24,19 +24,54 @@ pub enum State {
     Done,
 }
 
-pub struct TxSubmissionProtocol {
-    pub(crate) state: State,
-    pub(crate) result: Option<Result<String, String>>,
+#[derive(Debug)]
+pub enum Message {
+    Array(Vec<Value>),
+    Raw(Vec<u8>),
 }
 
-impl Default for TxSubmissionProtocol {
-    fn default() -> Self {
-        TxSubmissionProtocol { state: State::Idle, result: None }
+impl MessageOps for Message {
+    fn from_values(values: Vec<Value>) -> Self {
+        Message::Array(values)
+    }
+
+    fn to_values(&self) -> Vec<Value> {
+        match self {
+            Message::Array(values) => values.clone(),
+            Message::Raw(_data) => panic!(),
+        }
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Message::Raw(data) => data.clone(),
+            message => {
+                let value = self.to_values();
+                debug!("Tx: message {:?}", message);
+                to_vec(&value).unwrap()
+            }
+        }
+    }
+
+    fn info(&self) -> String {
+        format!("{:?}", self)
     }
 }
 
-impl TxSubmissionProtocol {
-    fn msg_reply_tx_ids(&self) -> Vec<u8> {
+pub struct TxSubmission {
+    pub(crate) state: State,
+}
+
+impl Default for TxSubmission {
+    fn default() -> Self {
+        TxSubmission {
+            state: State::Idle
+        }
+    }
+}
+
+impl TxSubmission {
+    fn msg_reply_tx_ids(&self) -> Message {
         // We need to do manual cbor encoding to do the empty indefinite array for txs.
         // We always just tell the server we have no transactions to send it.
         let mut message: Vec<u8> = Vec::new();
@@ -44,17 +79,16 @@ impl TxSubmissionProtocol {
         message.write_u8(0x01).unwrap(); // message id for ReplyTxIds is 1
         message.write_u8(0x9f).unwrap(); // indefinite array start
         message.write_u8(0xff).unwrap(); // indefinite array end
-        return message;
+        Message::Raw(message)
     }
 }
 
-impl Protocol for TxSubmissionProtocol {
-    fn protocol_id(&self) -> u16 {
-        return 0x0004u16;
-    }
+impl Protocol for TxSubmission {
+    type State = State;
+    type Message = Message;
 
-    fn result(&self) -> Result<String, String> {
-        self.result.clone().unwrap()
+    fn protocol_id(&self) -> u16 {
+        0x0004
     }
 
     fn role(&self) -> Agency {
@@ -63,82 +97,67 @@ impl Protocol for TxSubmissionProtocol {
 
     fn agency(&self) -> Agency {
         return match self.state {
-            State::Idle => { Agency::Server }
-            State::TxIdsBlocking => { Agency::Client }
-            State::TxIdsNonBlocking => { Agency::Client }
-            State::Done => {
-                if self.result.is_none() { Agency::Client } else { Agency::None }
-            }
+            State::Idle => Agency::None,
+            State::TxIdsBlocking => Agency::None,
+            State::TxIdsNonBlocking => Agency::None,
+            State::Done => Agency::None,
         };
     }
 
-    fn state(&self) -> String {
-        format!("{:?}", self.state)
+    fn state(&self) -> Self::State {
+        self.state
     }
 
-    fn send_data(&mut self) -> Option<Vec<u8>> {
+    fn send(&mut self) -> Result<Self::Message, Error> {
         return match self.state {
-            State::Idle => {
-                debug!("TxSubmissionProtocol::State::Idle");
-                None
-            }
             State::TxIdsBlocking => {
-                debug!("TxSubmissionProtocol::State::TxIdsBlocking");
+                debug!("TxSubmission::State::TxIdsBlocking");
                 // Server will wait on us forever. Just move to Done state.
                 self.state = State::Done;
-                None
+                Err("Unexpected.".to_string())
             }
             State::TxIdsNonBlocking => {
-                debug!("TxSubmissionProtocol::State::TxIdsNonBlocking");
+                debug!("TxSubmission::State::TxIdsNonBlocking");
                 // Tell the server that we have no transactions to send them
                 let payload = self.msg_reply_tx_ids();
                 self.state = State::Idle;
-                Some(payload)
+                Ok(payload)
             }
-            //State::Txs => { None }
-            State::Done => {
-                warn!("TxSubmissionProtocol::State::Done");
-                self.result = Option::Some(Ok(String::from("Done")));
-                None
-            }
+            state => Err(format!("Unexpected state: {:?}", state))
         };
     }
 
-    fn receive_data(&mut self, data: Vec<u8>) {
-        let cbor_value: Value = de::from_slice(&data[..]).unwrap();
-        match cbor_value {
-            Value::Array(cbor_array) => {
-                match cbor_array[0] {
-                    Value::Integer(message_id) => {
-                        match message_id {
-                            //msgRequestTxIds = [0, tsBlocking, txCount, txCount]
-                            //msgReplyTxIds   = [1, [ *txIdAndSize] ]
-                            //msgRequestTxs   = [2, tsIdList ]
-                            //msgReplyTxs     = [3, tsIdList ]
-                            //tsMsgDone       = [4]
-                            //msgReplyKTnxBye = [5]
-                            0 => {
-                                debug!("TxSubmissionProtocol received MsgRequestTxIds");
-                                let is_blocking = cbor_array[1] == Value::Bool(true);
-                                self.state = if is_blocking {
-                                    State::TxIdsBlocking
-                                } else {
-                                    State::TxIdsNonBlocking
-                                }
-                            }
-                            _ => {
-                                error!("unexpected message_id: {}", message_id);
+    fn recv(&mut self, message: Self::Message) -> Result<(), Error> {
+        match message {
+            Message::Array(cbor_array) => match cbor_array[0] {
+                Value::Integer(message_id) => {
+                    match message_id {
+                        //msgRequestTxIds = [0, tsBlocking, txCount, txCount]
+                        //msgReplyTxIds   = [1, [ *txIdAndSize] ]
+                        //msgRequestTxs   = [2, tsIdList ]
+                        //msgReplyTxs     = [3, tsIdList ]
+                        //tsMsgDone       = [4]
+                        //msgReplyKTnxBye = [5]
+                        0 => {
+                            debug!("TxSubmission received MsgRequestTxIds");
+                            let is_blocking = cbor_array[1] == Value::Bool(true);
+                            self.state = if is_blocking {
+                                State::TxIdsBlocking
+                            } else {
+                                State::TxIdsNonBlocking
                             }
                         }
-                    }
-                    _ => {
-                        error!("Unexpected cbor!")
+                        _ => {
+                            error!("unexpected message_id: {}", message_id);
+                        }
                     }
                 }
+                _ => {
+                    error!("Unexpected cbor!")
+                }
             }
-            _ => {
-                error!("Unexpected cbor!")
-            }
+            _ => panic!(),
         }
+        Ok(())
     }
 }
