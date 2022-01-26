@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest, windows-2022, macos-11]
+        os: [windows-latest, ubuntu-latest]
         rust: [stable, nightly]
     runs-on: ${{ matrix.os }}
 
