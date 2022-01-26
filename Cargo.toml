@@ -32,7 +32,7 @@ log = "0.4.11"
 tokio = { version = "1.15.0", features = ["full"]}
 
 [dev-dependencies]
-simple_logger = { version = "2.1.0", default-features = false, features = ["colors"] }
+env_logger = "0.9.0"
 futures = "0.3.8"
 rusqlite = { version = "0.26.0", features = ["bundled"] }
 
