@@ -413,6 +413,8 @@ mod tests {
         assert_eq!(data, propose(magic));
         client.receive_bytes(confirm(magic));
         assert_eq!(client.state, State::Done);
+        assert_eq!(client.version, Some(Version::N2N(7)));
+        assert_eq!(client.network_magic, 0xdddddddd);
     }
 
     #[test]
@@ -431,5 +433,8 @@ mod tests {
         let data = server.send_bytes().unwrap();
         assert_eq!(server.state, State::Done);
         assert_eq!(data, confirm(magic));
+        assert_eq!(server.state, State::Done);
+        assert_eq!(server.version, Some(Version::N2N(7)));
+        assert_eq!(server.network_magic, 0xdddddddd);
     }
 }
