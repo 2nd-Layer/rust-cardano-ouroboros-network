@@ -77,6 +77,7 @@ impl Connection {
         Connection::new(Box::new(receiver), Box::new(sender))
     }
 
+    #[cfg(target_family = "unix")]
     pub fn from_unix_stream(stream: UnixStream) -> Self {
         let (receiver, sender) = stream.into_split();
         Connection::new(Box::new(receiver), Box::new(sender))

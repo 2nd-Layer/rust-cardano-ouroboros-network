@@ -5,10 +5,6 @@ SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
 
 */
 
-use cardano_ouroboros_network::mux::Connection;
-use log::info;
-use std::env;
-
 mod common;
 
 /**
@@ -17,6 +13,10 @@ mod common;
 #[cfg(target_family = "unix")]
 #[tokio::main]
 async fn main() {
+    use cardano_ouroboros_network::mux::Connection;
+    use log::info;
+    use std::env;
+
     let cfg = common::init();
     let magic = cfg.magic;
 
@@ -34,7 +34,5 @@ async fn main() {
 
 #[cfg(target_family = "windows")]
 fn main() {
-    let cfg = common::init();
-
-    error!("This test is not available on Windows!");
+    println!("This example is not available for Windows.");
 }
