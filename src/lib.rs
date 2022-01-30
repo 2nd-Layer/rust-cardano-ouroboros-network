@@ -61,7 +61,7 @@ pub trait Protocol {
     //
 
     fn send_bytes(&mut self) -> Option<Vec<u8>> {
-        assert_eq!(self.agency(), self.role());
+        debug_assert_eq!(self.agency(), self.role());
         // TODO: Protocol should really return an error.
         let message = self.send().unwrap();
         let bytes = message.to_bytes();
@@ -70,6 +70,8 @@ pub trait Protocol {
     }
 
     fn receive_bytes(&mut self, data: Vec<u8>) -> Option<Box<[u8]>> {
+        debug_assert!(self.agency() != Agency::None);
+        debug_assert!(self.agency() != self.role());
         //debug!("Received data length={}", data.len());
         debug!("receive_bytes {:?}", data.chunks(32).next());
         let mut d = Deserializer::from_slice(&data).into_iter::<Vec<Value>>();
