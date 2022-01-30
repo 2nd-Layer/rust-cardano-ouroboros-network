@@ -57,7 +57,7 @@ pub trait Protocol {
     fn recv(&mut self, message: Self::Message) -> Result<(), Error>;
 
     //
-    // Binary data 
+    // Binary data
     //
 
     fn send_bytes(&mut self) -> Option<Vec<u8>> {
