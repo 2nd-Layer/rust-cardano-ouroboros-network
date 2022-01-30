@@ -1,3 +1,10 @@
+/**
+© 2022 PERLUR Group
+
+SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
+
+*/
+
 use crate::{Protocol, Agency, Error};
 use crate::Message as MessageOps;
 use crate::mux::{Connection, Channel};
