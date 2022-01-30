@@ -5,7 +5,7 @@ This crate implements the networking layer for the Ouroboros blockchain protocol
 
 | **Protocol Name** | **Implementation Status** |
 |-------------------|---------------------------|
-| BlockFetch        | Not Implemented           |
+| BlockFetch        | Implemented               |
 | ChainSync         | Implemented               |
 | Handshake         | Implemented               |
 | KeepAlive         | Not Implemented           |
