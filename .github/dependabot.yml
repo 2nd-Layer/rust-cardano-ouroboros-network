@@ -5,6 +5,14 @@
 
 version: 2
 updates:
+# Set update schedule for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/.github/workflows/"
+    schedule:
+      # Check for updates to GitHub Actions every weekday
+      interval: "daily"
+    reviewers:
+      - "mark-stopka"
   - package-ecosystem: "cargo" # See documentation for possible values
     directory: "/" # Location of package manifests
     schedule:

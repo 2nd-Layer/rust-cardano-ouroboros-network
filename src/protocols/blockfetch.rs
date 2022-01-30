@@ -206,7 +206,7 @@ impl Protocol for BlockFetch {
     }
 
     fn recv(&mut self, message: Message) -> Result<(), Error> {
-        debug_assert!(self.running);
+        // `self.running` may be false in case of pipelining.
         Ok(self.state = match (self.state, message) {
             (State::Busy, Message::NoBlocks) => State::Idle,
             (State::Busy, Message::StartBatch) => State::Streaming,
