@@ -19,7 +19,7 @@ This crate implements the networking layer for the Ouroboros blockchain protocol
 # Contributing
 
 ## Submit Pull Requests
-This repository implements a [GitHub Action](https://github.com/aslafy-z/conventional-pr-title-action) to make sure that the PR name follows [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). Make sure your PRs follow the referred specification to pass Continuous Integration testing. 
+This repository implements a [GitHub Action](https://github.com/aslafy-z/conventional-pr-title-action) to make sure that the PR name follows [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/). Make sure your PRs follow the referred specification to pass Continuous Integration testing.
 
 ## [Cardano Project Catalyst](https://cardano.ideascale.com/a/home)
 We regularly apply for funding from individual funds of [Cardano Project Catalyst](https://cardano.ideascale.com/a/home), below you can see our history of applications for funding:
@@ -40,12 +40,12 @@ There are two documents which describe various levels of the networking layer of
   a design document.
 
   - [The Shelley Networking Protocol](https://hydra.iohk.io/job/Cardano/ouroboros-network/native.docs.x86_64-linux/latest/download/2)
-  
+
   This document is a technical specification of the networking protocol.  It
   includes serialisation formats, necessary details of multiplexer and
   technical specifications of mini-protocols used by either _node-to-node_ and
   _node-to-client_ flavors of the protocol.
-  
+
 ## Wireshark Plug-in
   - [Wireshark Dissector for Ouroboros-Network in Lua](https://github.com/input-output-hk/ouroboros-network/tree/master/ouroboros-network/wireshark-plugin)
 
@@ -70,5 +70,5 @@ There are two documents which describe various levels of the networking layer of
 This project is licensed under either of the following licenses:
   - GNU General Public License v3.0 (LICENSE or https://www.gnu.org/licenses/gpl-3.0-standalone.html)
   - GNU Lesser General Public License v3.0 (COPYING.LESSER or https://www.gnu.org/licenses/lgpl-3.0-standalone.html)
-  
+
   If for some reason you need different license, please [open an issue](https://github.com/2nd-Layer/rust-cardano-ouroboros-network/issues), we will evaluate your request for project-specific licensing.

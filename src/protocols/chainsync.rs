@@ -148,7 +148,7 @@ impl ChainSync {
 
     fn msg_request_next(&self) -> Message {
         // we just send an array containing the message_id for this one.
-       Message::Array(vec![Value::Integer(0)])
+        Message::Array(vec![Value::Integer(0)])
     }
 }
 
