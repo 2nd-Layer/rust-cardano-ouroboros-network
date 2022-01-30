@@ -17,12 +17,6 @@ indent_size = 4
 trim_trailing_whitespace = false
 indent_size = 2
 
-[**.json]
-end_of_line = lf
-insert_final_newline = false
-charset = utf-8
-trim_trailing_whitespace = true
-
 [.gitignore]
 end_of_line = lf
 insert_final_newline = false
@@ -31,6 +25,5 @@ trim_trailing_whitespace = true
 
 [README.md]
 end_of_line = lf
-insert_final_newline = false
 charset = utf-8
 trim_trailing_whitespace = true
