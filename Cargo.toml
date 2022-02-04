@@ -35,8 +35,8 @@ tokio = { version = "1.15.0", features = ["full"]}
 env_logger = "0.9.0"
 futures = "0.3.8"
 rusqlite = { version = "0.26.0", features = ["bundled"] }
-oura = { git = "https://github.com/txpipe/oura.git" }
-pallas = "0.3.9"
+oura = "1.1.0"
+pallas = "0.4.0"
 
 [[example]]
 name = "common"
