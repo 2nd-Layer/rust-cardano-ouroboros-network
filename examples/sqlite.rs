@@ -5,7 +5,10 @@ Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
 Re-licensed under GPLv3 or LGPLv3
 © 2020 - 2021 PERLUR Group
 
-SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
+Re-licensed under MPLv2
+© 2022 PERLUR Group
+
+SPDX-License-Identifier: MPL-2.0
 
 */
 

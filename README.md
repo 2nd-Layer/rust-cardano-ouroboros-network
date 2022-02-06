@@ -67,8 +67,7 @@ There are two documents which describe various levels of the networking layer of
 
 # License
 
-This project is licensed under either of the following licenses:
-  - GNU General Public License v3.0 (LICENSE or https://www.gnu.org/licenses/gpl-3.0-standalone.html)
-  - GNU Lesser General Public License v3.0 (COPYING.LESSER or https://www.gnu.org/licenses/lgpl-3.0-standalone.html)
+This project is licensed under:
+  - Mozilla Public License 2.0 (LICENSE or https://spdx.org/licenses/MPL-2.0.html)
 
   If for some reason you need different license, please [open an issue](https://github.com/2nd-Layer/rust-cardano-ouroboros-network/issues), we will evaluate your request for project-specific licensing.

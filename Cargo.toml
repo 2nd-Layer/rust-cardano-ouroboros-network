@@ -1,14 +1,14 @@
 [package]
 name = "cardano_ouroboros_network"
 description = "This crate implements the networking layer for the Ouroboros protocol used by Cardano blockchain."
-license = "GPL-3.0 OR LGPL-3.0-only"
-version = "0.2.8"
+license = "MPL-2.0"
+version = "0.3.0"
 authors = [
   "Mark Stopka <mark.stopka@perlur.cloud>",
   "Pavel Šimerda <pavel.simerda@perlur.cloud>",
   "Andrew Westberg"
 ]
-edition = "2018"
+edition = "2021"
 readme = "README.md"
 repository = "https://github.com/2nd-Layer/rust-cardano-ouroboros-network/"
 categories = ["network-programming"]
