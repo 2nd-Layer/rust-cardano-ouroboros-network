@@ -1,8 +1,10 @@
 /**
 © 2020 - 2022 PERLUR Group
 
-SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
+Re-licenses under MPLv2
+© 2022 PERLUR Group
 
+SPDX-License-Identifier: MPL-2.0
 */
 
 use std::{
