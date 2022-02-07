@@ -8,7 +8,10 @@ SPDX-License-Identifier: MPL-2.0
 
 */
 
-use cardano_ouroboros_network::mux::Connection;
+use cardano_ouroboros_network::{
+    mux::Connection,
+    protocols::handshake::Handshake,
+};
 use std::{
     env,
     time::Duration,
@@ -25,7 +28,12 @@ async fn ping(host: &String, magic: u32) -> Result<(Duration, Duration), String>
         Err(_) => { return Err("Could not connect.".to_string()) }
     };
     let connect_duration = connection.duration();
-    connection.handshake(magic).await?;
+    Handshake::builder()
+        .client()
+        .node_to_node()
+        .network_magic(magic)
+        .build()?
+        .run(&mut connection).await?;
     let total_duration = connection.duration();
     Ok((connect_duration, total_duration))
 }
