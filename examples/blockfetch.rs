@@ -14,14 +14,19 @@ use cardano_ouroboros_network::{
     protocols::blockfetch::BlockFetch,
 };
 
+use std::sync::Arc;
+
 use pallas::ledger::alonzo::{
     BlockWrapper,
     Fragment,
 };
 
 use oura::{
+    sources::MagicArg,
+    utils::{Utils, WithUtils},
     mapper::EventWriter,
     mapper::Config,
+    mapper::ChainWellKnownInfo,
     pipelining::SinkProvider,
     pipelining::new_inter_stage_channel,
 };
@@ -51,8 +56,11 @@ async fn blockfetch(host: &String, magic: u32) -> Result<(), Box<dyn std::error:
         include_block_end_events: true,
         ..Default::default()
     };
+
+    let well_known = ChainWellKnownInfo::try_from_magic(*MagicArg::default()).unwrap();
+    let utils = Arc::new(Utils::new(well_known, None));
     let writer = EventWriter::standalone(tx, None, config);
-    let sink_handle = oura::sinks::terminal::Config::default().bootstrap(rx)?;
+    let sink_handle = WithUtils::new(oura::sinks::terminal::Config::default(), utils).bootstrap(rx)?;
 
     while let Some(block) = blocks.next().await? {
         let block = BlockWrapper::decode_fragment(&block[..])?;
