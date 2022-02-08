@@ -16,9 +16,12 @@ use cardano_ouroboros_network::{
 use std::sync::Arc;
 
 use pallas::ledger::alonzo::{
+    crypto::hash_block_header,
     BlockWrapper,
     Fragment,
 };
+
+use blake2b_simd::Params;
 
 use oura::{
     mapper::ChainWellKnownInfo,
@@ -33,17 +36,21 @@ use oura::{
     },
 };
 
+use log::debug;
+
 mod common;
 
-async fn blockfetch(host: &String, magic: u32) -> Result<(), Box<dyn std::error::Error>> {
-    let mut connection = match Connection::tcp_connect(&host).await {
+async fn blockfetch() -> Result<(), Box<dyn std::error::Error>> {
+    let cfg = common::init();
+
+    let mut connection = match Connection::tcp_connect(&cfg.host).await {
         Ok(connection) => connection,
         Err(_) => return Err("Could not connect.".to_string().into()),
     };
     Handshake::builder()
         .client()
         .node_to_node()
-        .network_magic(magic)
+        .network_magic(cfg.magic)
         .build()?
         .run(&mut connection)
         .await?;
@@ -69,11 +76,21 @@ async fn blockfetch(host: &String, magic: u32) -> Result<(), Box<dyn std::error:
     let well_known = ChainWellKnownInfo::try_from_magic(*MagicArg::default()).unwrap();
     let utils = Arc::new(Utils::new(well_known, None));
     let writer = EventWriter::standalone(tx, None, config);
-    let sink_handle =
-        WithUtils::new(oura::sinks::terminal::Config::default(), utils).bootstrap(rx)?;
+    let sink_handle = WithUtils::new(
+        oura::sinks::terminal::Config {
+            throttle_min_span_millis: Some(0),
+        },
+        utils,
+    )
+    .bootstrap(rx)?;
+    let block_db = cfg.sdb.open_tree("blocks").unwrap();
 
     while let Some(block) = blocks.next().await? {
+        let block_raw = block.clone();
         let block = BlockWrapper::decode_fragment(&block[..])?;
+        let hash = hash_block_header(&block.1.header);
+        //debug!("HASH: {}", hash);
+        block_db.insert(&hash, &*block_raw);
         writer.crawl(&block.1).unwrap();
     }
 
@@ -83,6 +100,5 @@ async fn blockfetch(host: &String, magic: u32) -> Result<(), Box<dyn std::error:
 
 #[tokio::main]
 async fn main() {
-    let cfg = common::init();
-    blockfetch(&cfg.host, cfg.magic).await.unwrap();
+    blockfetch().await.unwrap();
 }

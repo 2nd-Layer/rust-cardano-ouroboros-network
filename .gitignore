@@ -11,3 +11,6 @@ Cargo.lock
 
 # Project files
 .idea
+
+# Database used by examples
+/.db
