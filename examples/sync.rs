@@ -1,17 +1,19 @@
-/**
-© 2020 - 2022 PERLUR Group
-
-Re-licensed under MPLv2
-© 2022 PERLUR Group
-
-SPDX-License-Identifier: MPL-2.0
-
-*/
+//
+// © 2020 - 2022 PERLUR Group
+//
+// Re-licenses under MPLv2
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
 
 use cardano_ouroboros_network::{
     mux::Connection,
+    protocols::chainsync::{
+        ChainSync,
+        Mode,
+    },
     protocols::handshake::Handshake,
-    protocols::chainsync::{ChainSync, Mode},
 };
 
 mod common;
@@ -27,7 +29,8 @@ async fn chainsync() -> Result<(), Box<dyn std::error::Error>> {
         .node_to_node()
         .network_magic(cfg.magic)
         .build()?
-        .run(&mut connection).await?;
+        .run(&mut connection)
+        .await?;
     let mut chainsync = ChainSync {
         mode: Mode::Sync,
         network_magic: cfg.magic,

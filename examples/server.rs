@@ -1,21 +1,21 @@
-/**
-© 2020 - 2022 PERLUR Group
-
-Re-licensed under MPLv2
-© 2022 PERLUR Group
-
-SPDX-License-Identifier: MPL-2.0
-
-*/
+//
+// © 2020 - 2022 PERLUR Group
+//
+// Re-licenses under MPLv2
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
 
 use cardano_ouroboros_network::{
     mux::Connection,
-    protocols::{
-        handshake,
-    },
+    protocols::handshake,
 };
-use tokio::net::{TcpListener, TcpStream};
 use log::info;
+use tokio::net::{
+    TcpListener,
+    TcpStream,
+};
 
 mod common;
 
@@ -40,7 +40,8 @@ async fn handle(stream: TcpStream, cfg: &common::Config) -> Result<(), Error> {
         .node_to_node()
         .network_magic(cfg.magic)
         .build()?
-        .run(&mut connection).await?;
+        .run(&mut connection)
+        .await?;
 
     Ok(())
 }

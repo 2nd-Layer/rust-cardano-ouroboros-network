@@ -1,12 +1,11 @@
-/**
-© 2020 - 2022 PERLUR Group
-
-Re-licensed under MPLv2
-© 2022 PERLUR Group
-
-SPDX-License-Identifier: MPL-2.0
-
-*/
+//
+// © 2020 - 2022 PERLUR Group
+//
+// Re-licenses under MPLv2
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
 
 use cardano_ouroboros_network::{
     mux::Connection,
@@ -34,7 +33,8 @@ async fn local(magic: u32) -> Result<(), Box<dyn std::error::Error>> {
         .client_to_node()
         .network_magic(magic)
         .build()?
-        .run(&mut connection).await?;
+        .run(&mut connection)
+        .await?;
 
     info!("Ping UNIX socket success");
     Ok(())

@@ -1,23 +1,25 @@
-/**
-© 2020 - 2022 PERLUR Group
-
-Re-licensed under MPLv2
-© 2022 PERLUR Group
-
-SPDX-License-Identifier: MPL-2.0
-
-*/
+//
+// © 2020 - 2022 PERLUR Group
+//
+// Re-licenses under MPLv2
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
 
 use cardano_ouroboros_network::{
     mux::Connection,
     protocols::handshake::Handshake,
 };
+use futures::future::join_all;
+use log::{
+    error,
+    info,
+};
 use std::{
     env,
     time::Duration,
 };
-use log::{info, error};
-use futures::future::join_all;
 
 mod common;
 
@@ -25,7 +27,7 @@ async fn ping(host: &String, magic: u32) -> Result<(Duration, Duration), String>
     info!("Pinging host {} magic {}.", host, magic);
     let mut connection = match Connection::tcp_connect(&host).await {
         Ok(connection) => connection,
-        Err(_) => { return Err("Could not connect.".to_string()) }
+        Err(_) => return Err("Could not connect.".to_string()),
     };
     let connect_duration = connection.duration();
     Handshake::builder()
@@ -33,7 +35,8 @@ async fn ping(host: &String, magic: u32) -> Result<(Duration, Duration), String>
         .node_to_node()
         .network_magic(magic)
         .build()?
-        .run(&mut connection).await?;
+        .run(&mut connection)
+        .await?;
     let total_duration = connection.duration();
     Ok((connect_duration, total_duration))
 }
@@ -56,12 +59,18 @@ async fn main() {
         async move {
             match ping(&host.clone(), cfg.magic).await {
                 Ok((connect_duration, total_duration)) => {
-                    info!("Ping {} success! : connect_duration: {}, total_duration: {}", &host, connect_duration.as_millis(), total_duration.as_millis());
+                    info!(
+                        "Ping {} success! : connect_duration: {}, total_duration: {}",
+                        &host,
+                        connect_duration.as_millis(),
+                        total_duration.as_millis()
+                    );
                 }
                 Err(error) => {
                     error!("Ping {} failed! : {:?}", &host, error);
                 }
             }
         }
-    })).await;
+    }))
+    .await;
 }

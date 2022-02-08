@@ -1,26 +1,37 @@
-/**
-© 2020 PERLUR Group
-
-Re-licensed under MPLv2
-© 2022 PERLUR Group
-
-SPDX-License-Identifier: MPL-2.0
-
-*/
+//
+// © 2020 - 2022 PERLUR Group
+//
+// Re-licenses under MPLv2
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
 
 use cardano_ouroboros_network::{
-    BlockHeader,
     protocols::chainsync::Listener,
+    BlockHeader,
 };
-use std::path::PathBuf;
-use log::{info, error};
-use serde::Serialize;
+use chrono::{
+    SecondsFormat,
+    Utc,
+};
+use log::{
+    error,
+    info,
+};
 use regex::Regex;
-use chrono::{SecondsFormat, Utc};
+use serde::Serialize;
+use std::path::PathBuf;
 use std::{
-    process::{Command, Stdio},
-    time::{Duration, Instant},
     ops::Sub,
+    process::{
+        Command,
+        Stdio,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 struct PoolTool {
@@ -78,15 +89,23 @@ impl Listener for PoolTool {
                 .output()
                 .expect(&*format!("Failed to execute {:?}", &self.cardano_node_path));
             let version_string = String::from_utf8_lossy(&output.stdout);
-            let cap = Regex::new("cardano-node (\\d+\\.\\d+\\.\\d+) .*\ngit rev ([a-f0-9]{5}).*").unwrap().captures(&*version_string).unwrap();
-            self.node_version = format!("{}:{}", cap.get(1).map_or("", |m| m.as_str()), cap.get(2).map_or("", |m| m.as_str()));
+            let cap = Regex::new("cardano-node (\\d+\\.\\d+\\.\\d+) .*\ngit rev ([a-f0-9]{5}).*")
+                .unwrap()
+                .captures(&*version_string)
+                .unwrap();
+            self.node_version = format!(
+                "{}:{}",
+                cap.get(1).map_or("", |m| m.as_str()),
+                cap.get(2).map_or("", |m| m.as_str())
+            );
             info!("Checking cardano-node version: {}", &self.node_version);
             self.last_node_version_time = Instant::now();
         }
         let client = reqwest::blocking::Client::new();
-        let pooltool_result = client.post("https://api.pooltool.io/v0/sendstats").body(
-            serde_json::ser::to_string(
-                &PooltoolStats {
+        let pooltool_result = client
+            .post("https://api.pooltool.io/v0/sendstats")
+            .body(
+                serde_json::ser::to_string(&PooltoolStats {
                     api_key: self.pooltool_api_key.clone(),
                     pool_id: self.pool_id.clone(),
                     data: PooltoolData {
@@ -100,20 +119,30 @@ impl Listener for PoolTool {
                         leader_vrf: hex::encode(&header.leader_vrf_0),
                         platform: "cncli".to_string(),
                     },
-                }
-            ).unwrap()
-        ).send();
+                })
+                .unwrap(),
+            )
+            .send();
 
         match pooltool_result {
-            Ok(response) => {
-                match response.text() {
-                    Ok(text) => {
-                        info!("Pooltool ({}, {}): ({}, {}), json: {}", &self.pool_name, &self.pool_id[..8], &header.block_number, hex::encode(&header.hash[..8]), text);
-                    }
-                    Err(error) => { error!("PoolTool error: {}", error); }
+            Ok(response) => match response.text() {
+                Ok(text) => {
+                    info!(
+                        "Pooltool ({}, {}): ({}, {}), json: {}",
+                        &self.pool_name,
+                        &self.pool_id[..8],
+                        &header.block_number,
+                        hex::encode(&header.hash[..8]),
+                        text
+                    );
                 }
+                Err(error) => {
+                    error!("PoolTool error: {}", error);
+                }
+            },
+            Err(error) => {
+                error!("PoolTool error: {}", error);
             }
-            Err(error) => { error!("PoolTool error: {}", error); }
         }
     }
 }
