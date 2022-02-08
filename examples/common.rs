@@ -1,12 +1,12 @@
-/**
-© 2020 - 2022 PERLUR Group
+//
+// © 2020 - 2022 PERLUR Group
+//
+// Re-licenses under MPLv2
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
 
-Re-licensed under MPLv2
-© 2022 PERLUR Group
-
-SPDX-License-Identifier: MPL-2.0
-
-*/
 use std::path::PathBuf;
 
 #[derive(Clone)]

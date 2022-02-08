@@ -1,3 +1,16 @@
+//
+// Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
+// © 2020 Andrew Westberg licensed under Apache-2.0
+//
+// Re-licensed under GPLv3 or LGPLv3
+// © 2020 - 2021 PERLUR Group
+//
+// Re-licenses under MPLv2
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
+
 use crate::mux::Connection;
 use crate::Message as MessageOps;
 use crate::{
@@ -5,19 +18,6 @@ use crate::{
     Error,
     Protocol,
 };
-/**
-Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
-© 2020 Andrew Westberg licensed under Apache-2.0
-
-Re-licensed under GPLv3 or LGPLv3
-© 2020 PERLUR Group
-
-Re-licenses under MPLv2
-© 2022 PERLUR Group
-
-SPDX-License-Identifier: MPL-2.0
-
-*/
 use log::{
     debug,
     error,

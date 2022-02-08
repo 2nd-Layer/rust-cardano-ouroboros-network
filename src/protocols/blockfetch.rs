@@ -1,17 +1,17 @@
+//
+// © 2022 PERLUR Group
+//
+// Re-licenses under MPLv2
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
+
 use crate::mux::{
     Channel,
     Connection,
 };
 use crate::Message as MessageOps;
-/**
-© 2022 PERLUR Group
-
-Re-licenses under MPLv2
-© 2022 PERLUR Group
-
-SPDX-License-Identifier: MPL-2.0
-
-*/
 use crate::{
     Agency,
     Error,
