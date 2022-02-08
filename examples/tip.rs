@@ -7,12 +7,15 @@ Re-licensed under MPLv2
 SPDX-License-Identifier: MPL-2.0
 
 */
-
 use cardano_ouroboros_network::{
     mux::Connection,
-    BlockHeader,
+    protocols::chainsync::{
+        ChainSync,
+        Listener,
+        Mode,
+    },
     protocols::handshake::Handshake,
-    protocols::chainsync::{ChainSync, Mode, Listener},
+    BlockHeader,
 };
 use log::info;
 
@@ -36,7 +39,8 @@ async fn tip() -> Result<(), Box<dyn std::error::Error>> {
         .node_to_node()
         .network_magic(cfg.magic)
         .build()?
-        .run(&mut connection).await?;
+        .run(&mut connection)
+        .await?;
     let mut chainsync = ChainSync {
         mode: Mode::SendTip,
         network_magic: cfg.magic,

@@ -1,3 +1,5 @@
+pub mod blockfetch;
+pub mod chainsync;
 /**
 Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
 © 2020 Andrew Westberg licensed under Apache-2.0
@@ -11,8 +13,5 @@ Re-licenses under MPLv2
 SPDX-License-Identifier: MPL-2.0
 
 */
-
 pub mod handshake;
 pub mod txsubmission;
-pub mod chainsync;
-pub mod blockfetch;

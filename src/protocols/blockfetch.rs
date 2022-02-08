@@ -1,3 +1,8 @@
+use crate::mux::{
+    Channel,
+    Connection,
+};
+use crate::Message as MessageOps;
 /**
 © 2022 PERLUR Group
 
@@ -7,10 +12,11 @@ Re-licenses under MPLv2
 SPDX-License-Identifier: MPL-2.0
 
 */
-
-use crate::{Protocol, Agency, Error};
-use crate::Message as MessageOps;
-use crate::mux::{Connection, Channel};
+use crate::{
+    Agency,
+    Error,
+    Protocol,
+};
 use serde_cbor::Value;
 
 type Point = (u64, Vec<u8>);
@@ -37,21 +43,25 @@ impl MessageOps for Message {
     fn from_values(array: Vec<Value>) -> Result<Self, Error> {
         let mut values = array.iter();
         //debug!("Parsing message: {:?}", values);
-        let message = match values.next().ok_or("Unexpected end of message.".to_string())? {
+        let message = match values
+            .next()
+            .ok_or("Unexpected end of message.".to_string())?
+        {
             //Value::Integer(0) => Message::RequestRange(),
             Value::Integer(1) => Message::ClientDone,
             Value::Integer(2) => Message::StartBatch,
             Value::Integer(3) => Message::NoBlocks,
             Value::Integer(4) => {
-                match values.next().ok_or("Unexpected End of message.".to_string())? {
-                    Value::Bytes(bytes) => {
-                        Message::Block(bytes.to_vec())
-                    }
+                match values
+                    .next()
+                    .ok_or("Unexpected End of message.".to_string())?
+                {
+                    Value::Bytes(bytes) => Message::Block(bytes.to_vec()),
                     _ => panic!("Extra data: {:?}", values.collect::<Vec<_>>()),
                 }
             }
             Value::Integer(5) => Message::BatchDone,
-            _ => panic!()
+            _ => panic!(),
         };
         match values.next() {
             Some(Value::Null) => Ok(message),
@@ -64,15 +74,10 @@ impl MessageOps for Message {
         match self {
             Message::RequestRange(first, last) => vec![
                 Value::Integer(0),
-                vec![
-                    Value::Integer(first.0.into()),
-                    first.1.clone().into(),
-                ].into(),
-                vec![
-                    Value::Integer(last.0.into()),
-                    last.1.clone().into(),
-                ].into(),
-            ].into(),
+                vec![Value::Integer(first.0.into()), first.1.clone().into()].into(),
+                vec![Value::Integer(last.0.into()), last.1.clone().into()].into(),
+            ]
+            .into(),
             _ => panic!(),
         }
     }
@@ -102,14 +107,14 @@ impl Builder {
     }
     pub fn build(&mut self) -> Result<BlockFetch, Error> {
         Ok(BlockFetch {
-                config: Config {
-                    first: self.first.as_ref().ok_or("First point required.")?.clone(),
-                    last: self.last.as_ref().ok_or("Last point required.")?.clone(),
-                },
-                state: State::Idle,
-                result: Vec::new(),
-                running: false,
-                done: false,
+            config: Config {
+                first: self.first.as_ref().ok_or("First point required.")?.clone(),
+                last: self.last.as_ref().ok_or("Last point required.")?.clone(),
+            },
+            state: State::Idle,
+            result: Vec::new(),
+            running: false,
+            done: false,
         })
     }
 }
@@ -132,14 +137,15 @@ impl BlockFetch {
         Default::default()
     }
 
-    pub async fn run<'a>(&'a mut self, connection: &'a mut Connection) -> Result<BlockStream<'a>, Error> {
+    pub async fn run<'a>(
+        &'a mut self,
+        connection: &'a mut Connection,
+    ) -> Result<BlockStream<'a>, Error> {
         // Start the protocol and prefetch first block into `self.result`.
         self.running = true;
         let mut channel = connection.execute(self);
         channel.execute().await?;
-        Ok(BlockStream {
-            channel,
-        })
+        Ok(BlockStream { channel })
     }
 }
 
@@ -186,7 +192,7 @@ impl Protocol for BlockFetch {
                 State::Busy => Agency::Server,
                 State::Streaming => Agency::Server,
                 State::Done => Agency::None,
-            }
+            },
             false => Agency::None,
         }
     }
@@ -201,17 +207,20 @@ impl Protocol for BlockFetch {
             false => match self.state {
                 State::Idle => {
                     self.state = State::Busy;
-                    Ok(Message::RequestRange(self.config.first.clone(), self.config.last.clone()))
+                    Ok(Message::RequestRange(
+                        self.config.first.clone(),
+                        self.config.last.clone(),
+                    ))
                 }
                 other => Err(format!("Unexpected state: {:?}", other)),
-            }
+            },
             true => match self.state {
                 State::Idle => {
                     self.state = State::Done;
                     Ok(Message::ClientDone)
                 }
                 other => Err(format!("Unexpected state: {:?}", other)),
-            }
+            },
         }
     }
 
@@ -250,10 +259,10 @@ mod tests {
         client.running = true;
         let message = client.send().unwrap();
         assert!(client.running);
-        assert_eq!(message, Message::RequestRange(
-                (42, b"fake-hash-1".to_vec()),
-                (43, b"fake-hash-2".to_vec()),
-        ));
+        assert_eq!(
+            message,
+            Message::RequestRange((42, b"fake-hash-1".to_vec()), (43, b"fake-hash-2".to_vec()),)
+        );
         assert_eq!(client.state, State::Busy);
         assert!(client.result.is_empty());
         client.recv(Message::StartBatch).unwrap();
@@ -307,10 +316,10 @@ mod tests {
         client.running = true;
         let message = client.send().unwrap();
         assert!(client.running);
-        assert_eq!(message, Message::RequestRange(
-                (42, b"fake-hash-1".to_vec()),
-                (43, b"fake-hash-2".to_vec()),
-        ));
+        assert_eq!(
+            message,
+            Message::RequestRange((42, b"fake-hash-1".to_vec()), (43, b"fake-hash-2".to_vec()),)
+        );
         assert_eq!(client.state, State::Busy);
         assert!(client.result.is_empty());
         client.recv(Message::NoBlocks).unwrap();

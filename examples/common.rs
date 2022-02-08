@@ -7,7 +7,6 @@ Re-licensed under MPLv2
 SPDX-License-Identifier: MPL-2.0
 
 */
-
 use std::path::PathBuf;
 
 #[derive(Clone)]

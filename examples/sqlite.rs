@@ -11,12 +11,21 @@ Re-licensed under MPLv2
 SPDX-License-Identifier: MPL-2.0
 
 */
-
 use blake2b_simd::Params;
-use cardano_ouroboros_network::{BlockHeader, BlockStore};
+use cardano_ouroboros_network::{
+    BlockHeader,
+    BlockStore,
+};
 use log::debug;
-use rusqlite::{named_params, Connection, Error};
-use std::{io, path::PathBuf};
+use rusqlite::{
+    named_params,
+    Connection,
+    Error,
+};
+use std::{
+    io,
+    path::PathBuf,
+};
 
 pub struct SQLiteBlockStore {
     pub db: Connection,

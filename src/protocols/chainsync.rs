@@ -11,20 +11,38 @@ Re-licenses under MPLv2
 SPDX-License-Identifier: MPL-2.0
 
 */
-
 use std::{
-    time::{Duration, Instant},
     io,
     ops::Sub,
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
-use log::{debug, error, info, trace, warn};
-use serde_cbor::{de, Value};
+use log::{
+    debug,
+    error,
+    info,
+    trace,
+    warn,
+};
+use serde_cbor::{
+    de,
+    Value,
+};
 
-use crate::{Agency, Protocol, Error};
-use crate::Message as MessageOps;
-use crate::{BlockStore, BlockHeader};
 use crate::mux::Connection;
+use crate::Message as MessageOps;
+use crate::{
+    Agency,
+    Error,
+    Protocol,
+};
+use crate::{
+    BlockHeader,
+    BlockStore,
+};
 
 use blake2b_simd::Params;
 
@@ -71,7 +89,7 @@ pub struct Tip {
     pub hash: Vec<u8>,
 }
 
-pub trait Listener : Send {
+pub trait Listener: Send {
     fn handle_tip(&mut self, msg_roll_forward: &BlockHeader);
 }
 
@@ -145,7 +163,17 @@ impl ChainSync {
         Message::Array(vec![
             Value::Integer(4), // message_id
             // Value::Array(points),
-            Value::Array(chain_blocks.iter().map(|(slot, hash)| Value::Array(vec![Value::Integer(*slot as i128), Value::Bytes(hash.clone())])).collect())
+            Value::Array(
+                chain_blocks
+                    .iter()
+                    .map(|(slot, hash)| {
+                        Value::Array(vec![
+                            Value::Integer(*slot as i128),
+                            Value::Bytes(hash.clone()),
+                        ])
+                    })
+                    .collect(),
+            ),
         ])
     }
 
@@ -169,11 +197,11 @@ impl Protocol for ChainSync {
 
     fn agency(&self) -> Agency {
         return match self.state {
-            State::Idle => { Agency::Client }
-            State::Intersect => { Agency::Server }
-            State::CanAwait => { Agency::Server }
-            State::MustReply => { Agency::Server }
-            State::Done => { Agency::None }
+            State::Idle => Agency::Client,
+            State::Intersect => Agency::Server,
+            State::CanAwait => Agency::Server,
+            State::MustReply => Agency::Server,
+            State::Done => Agency::None,
         };
     }
 
@@ -210,11 +238,29 @@ impl Protocol for ChainSync {
 
                     //TODO: Make these protocol inputs instead of hardcoding here
                     // Last byron block of mainnet
-                    chain_blocks.push((4492799, hex::decode("f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457").unwrap()));
+                    chain_blocks.push((
+                        4492799,
+                        hex::decode(
+                            "f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457",
+                        )
+                        .unwrap(),
+                    ));
                     // Last byron block of testnet
-                    chain_blocks.push((1598399, hex::decode("7e16781b40ebf8b6da18f7b5e8ade855d6738095ef2f1c58c77e88b6e45997a4").unwrap()));
+                    chain_blocks.push((
+                        1598399,
+                        hex::decode(
+                            "7e16781b40ebf8b6da18f7b5e8ade855d6738095ef2f1c58c77e88b6e45997a4",
+                        )
+                        .unwrap(),
+                    ));
                     // Last byron block of guild
-                    chain_blocks.push((719, hex::decode("e5400faf19e712ebc5ff5b4b44cecb2b140d1cca25a011e36a91d89e97f53e2e").unwrap()));
+                    chain_blocks.push((
+                        719,
+                        hex::decode(
+                            "e5400faf19e712ebc5ff5b4b44cecb2b140d1cca25a011e36a91d89e97f53e2e",
+                        )
+                        .unwrap(),
+                    ));
 
                     trace!("intersect");
                     let payload = self.msg_find_intersect(chain_blocks);
@@ -253,13 +299,30 @@ impl Protocol for ChainSync {
                     2 => {
                         // MsgRollForward
                         match parse_msg_roll_forward(cbor_array) {
-                            None => { warn!("Probably a byron block. skipping...") }
+                            None => {
+                                warn!("Probably a byron block. skipping...")
+                            }
                             Some((msg_roll_forward, tip)) => {
-                                let is_tip = msg_roll_forward.slot_number == tip.slot_number && msg_roll_forward.hash == tip.hash;
-                                trace!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
+                                let is_tip = msg_roll_forward.slot_number == tip.slot_number
+                                    && msg_roll_forward.hash == tip.hash;
+                                trace!(
+                                    "block {} of {}, {:.2}% synced",
+                                    msg_roll_forward.block_number,
+                                    tip.block_number,
+                                    (msg_roll_forward.block_number as f64
+                                        / tip.block_number as f64)
+                                        * 100.0
+                                );
                                 if is_tip || self.last_log_time.elapsed() > ChainSync::FIVE_SECS {
                                     if self.mode == Mode::Sync {
-                                        info!("block {} of {}, {:.2}% synced", msg_roll_forward.block_number, tip.block_number, (msg_roll_forward.block_number as f64 / tip.block_number as f64) * 100.0);
+                                        info!(
+                                            "block {} of {}, {:.2}% synced",
+                                            msg_roll_forward.block_number,
+                                            tip.block_number,
+                                            (msg_roll_forward.block_number as f64
+                                                / tip.block_number as f64)
+                                                * 100.0
+                                        );
                                     }
                                     self.last_log_time = Instant::now()
                                 }
@@ -299,7 +362,8 @@ impl Protocol for ChainSync {
                     }
                     6 => {
                         warn!("MsgIntersectNotFound: {:?}", cbor_array);
-                        self.is_intersect_found = true; // should start syncing at first byron block. We will just skip all byron blocks.
+                        self.is_intersect_found = true; // should start syncing at first byron block. We will just skip all byron
+                                                        // blocks.
                         self.state = State::Idle;
                     }
                     7 => {
@@ -327,15 +391,19 @@ trait UnwrapValue {
 impl UnwrapValue for Value {
     fn integer(&self) -> i128 {
         match self {
-            Value::Integer(integer_value) => { *integer_value }
-            _ => { panic!("not an integer!") }
+            Value::Integer(integer_value) => *integer_value,
+            _ => {
+                panic!("not an integer!")
+            }
         }
     }
 
     fn bytes(&self) -> Vec<u8> {
         match self {
-            Value::Bytes(bytes_vec) => { bytes_vec.clone() }
-            _ => { panic!("not a byte array!") }
+            Value::Bytes(bytes_vec) => bytes_vec.clone(),
+            _ => {
+                panic!("not a byte array!")
+            }
         }
     }
 }
@@ -372,54 +440,84 @@ pub fn parse_msg_roll_forward(cbor_array: Vec<Value>) -> Option<(BlockHeader, Ti
             match &header_array[1] {
                 Value::Bytes(wrapped_block_header_bytes) => {
                     // calculate the block hash
-                    let hash = Params::new().hash_length(32).to_state().update(&*wrapped_block_header_bytes).finalize();
+                    let hash = Params::new()
+                        .hash_length(32)
+                        .to_state()
+                        .update(&*wrapped_block_header_bytes)
+                        .finalize();
                     msg_roll_forward.hash = hash.as_bytes().to_owned();
 
-                    let block_header: Value = de::from_slice(&wrapped_block_header_bytes[..]).unwrap();
+                    let block_header: Value =
+                        de::from_slice(&wrapped_block_header_bytes[..]).unwrap();
                     match block_header {
-                        Value::Array(block_header_array) => {
-                            match &block_header_array[0] {
-                                Value::Array(block_header_array_inner) => {
-                                    msg_roll_forward.block_number = block_header_array_inner[0].integer() as i64;
-                                    msg_roll_forward.slot_number = block_header_array_inner[1].integer() as i64;
-                                    msg_roll_forward.prev_hash.append(&mut block_header_array_inner[2].bytes());
-                                    msg_roll_forward.node_vkey.append(&mut block_header_array_inner[3].bytes());
-                                    msg_roll_forward.node_vrf_vkey.append(&mut block_header_array_inner[4].bytes());
-                                    match &block_header_array_inner[5] {
-                                        Value::Array(nonce_array) => {
-                                            msg_roll_forward.eta_vrf_0.append(&mut nonce_array[0].bytes());
-                                            msg_roll_forward.eta_vrf_1.append(&mut nonce_array[1].bytes());
-                                        }
-                                        _ => {
-                                            warn!("invalid cbor! code: 340");
-                                            return None;
-                                        }
+                        Value::Array(block_header_array) => match &block_header_array[0] {
+                            Value::Array(block_header_array_inner) => {
+                                msg_roll_forward.block_number =
+                                    block_header_array_inner[0].integer() as i64;
+                                msg_roll_forward.slot_number =
+                                    block_header_array_inner[1].integer() as i64;
+                                msg_roll_forward
+                                    .prev_hash
+                                    .append(&mut block_header_array_inner[2].bytes());
+                                msg_roll_forward
+                                    .node_vkey
+                                    .append(&mut block_header_array_inner[3].bytes());
+                                msg_roll_forward
+                                    .node_vrf_vkey
+                                    .append(&mut block_header_array_inner[4].bytes());
+                                match &block_header_array_inner[5] {
+                                    Value::Array(nonce_array) => {
+                                        msg_roll_forward
+                                            .eta_vrf_0
+                                            .append(&mut nonce_array[0].bytes());
+                                        msg_roll_forward
+                                            .eta_vrf_1
+                                            .append(&mut nonce_array[1].bytes());
                                     }
-                                    match &block_header_array_inner[6] {
-                                        Value::Array(leader_array) => {
-                                            msg_roll_forward.leader_vrf_0.append(&mut leader_array[0].bytes());
-                                            msg_roll_forward.leader_vrf_1.append(&mut leader_array[1].bytes());
-                                        }
-                                        _ => {
-                                            warn!("invalid cbor! code: 341");
-                                            return None;
-                                        }
+                                    _ => {
+                                        warn!("invalid cbor! code: 340");
+                                        return None;
                                     }
-                                    msg_roll_forward.block_size = block_header_array_inner[7].integer() as i64;
-                                    msg_roll_forward.block_body_hash.append(&mut block_header_array_inner[8].bytes());
-                                    msg_roll_forward.pool_opcert.append(&mut block_header_array_inner[9].bytes());
-                                    msg_roll_forward.unknown_0 = block_header_array_inner[10].integer() as i64;
-                                    msg_roll_forward.unknown_1 = block_header_array_inner[11].integer() as i64;
-                                    msg_roll_forward.unknown_2.append(&mut block_header_array_inner[12].bytes());
-                                    msg_roll_forward.protocol_major_version = block_header_array_inner[13].integer() as i64;
-                                    msg_roll_forward.protocol_minor_version = block_header_array_inner[14].integer() as i64;
                                 }
-                                _ => {
-                                    warn!("invalid cbor! code: 342");
-                                    return None;
+                                match &block_header_array_inner[6] {
+                                    Value::Array(leader_array) => {
+                                        msg_roll_forward
+                                            .leader_vrf_0
+                                            .append(&mut leader_array[0].bytes());
+                                        msg_roll_forward
+                                            .leader_vrf_1
+                                            .append(&mut leader_array[1].bytes());
+                                    }
+                                    _ => {
+                                        warn!("invalid cbor! code: 341");
+                                        return None;
+                                    }
                                 }
+                                msg_roll_forward.block_size =
+                                    block_header_array_inner[7].integer() as i64;
+                                msg_roll_forward
+                                    .block_body_hash
+                                    .append(&mut block_header_array_inner[8].bytes());
+                                msg_roll_forward
+                                    .pool_opcert
+                                    .append(&mut block_header_array_inner[9].bytes());
+                                msg_roll_forward.unknown_0 =
+                                    block_header_array_inner[10].integer() as i64;
+                                msg_roll_forward.unknown_1 =
+                                    block_header_array_inner[11].integer() as i64;
+                                msg_roll_forward
+                                    .unknown_2
+                                    .append(&mut block_header_array_inner[12].bytes());
+                                msg_roll_forward.protocol_major_version =
+                                    block_header_array_inner[13].integer() as i64;
+                                msg_roll_forward.protocol_minor_version =
+                                    block_header_array_inner[14].integer() as i64;
                             }
-                        }
+                            _ => {
+                                warn!("invalid cbor! code: 342");
+                                return None;
+                            }
+                        },
                         _ => {
                             warn!("invalid cbor! code: 343");
                             return None;
@@ -467,12 +565,16 @@ pub fn parse_msg_roll_backward(cbor_array: Vec<Value>) -> i64 {
         Value::Array(block) => {
             if block.len() > 0 {
                 match block[0] {
-                    Value::Integer(parsed_slot) => { slot = parsed_slot as i64 }
-                    _ => { error!("invalid cbor"); }
+                    Value::Integer(parsed_slot) => slot = parsed_slot as i64,
+                    _ => {
+                        error!("invalid cbor");
+                    }
                 }
             }
         }
-        _ => { error!("invalid cbor"); }
+        _ => {
+            error!("invalid cbor");
+        }
     }
 
     slot

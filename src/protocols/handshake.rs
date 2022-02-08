@@ -1,3 +1,10 @@
+use crate::mux::Connection;
+use crate::Message as MessageOps;
+use crate::{
+    Agency,
+    Error,
+    Protocol,
+};
 /**
 Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
 © 2020 Andrew Westberg licensed under Apache-2.0
@@ -11,12 +18,14 @@ Re-licenses under MPLv2
 SPDX-License-Identifier: MPL-2.0
 
 */
-
-use log::{debug, error};
-use serde_cbor::{Value, Value::*};
-use crate::{Agency, Protocol, Error};
-use crate::Message as MessageOps;
-use crate::mux::Connection;
+use log::{
+    debug,
+    error,
+};
+use serde_cbor::{
+    Value,
+    Value::*,
+};
 use std::convert::TryFrom;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -37,47 +46,48 @@ impl MessageOps for Message {
     fn from_values(values: Vec<Value>) -> Result<Self, Error> {
         let mut values = values.into_iter();
         match values.next().ok_or("Message ID required.")? {
-            Value::Integer(0) => {
-                match values.next() {
-                    Some(Value::Map(map)) => {
-                        let items: Vec<(_, _)> = map.iter()
-                            .map(|(key, value)| Version::from_values(key.clone(), value.clone()))
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let magic = *match items.first().map(|(_, value)| value) {
-                            Some(magic) => {
-                                items.iter()
-                                    .all(|(_, value)| value == magic)
-                                    .then(|| ())
-                                    .ok_or("Different magics not supported.")?;
-                                magic
-                            }
-                            None => return Err("At least one version required.".to_string()),
-                        };
-                        let versions = items.into_iter()
-                            .map(|(key, _)| key)
-                            .collect();
-                        Ok(Message::ProposeVersions(versions, magic))
-                    }
-                    _ => Err("Map of supported versions required.".to_string()),
+            Value::Integer(0) => match values.next() {
+                Some(Value::Map(map)) => {
+                    let items: Vec<(_, _)> = map
+                        .iter()
+                        .map(|(key, value)| Version::from_values(key.clone(), value.clone()))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let magic = *match items.first().map(|(_, value)| value) {
+                        Some(magic) => {
+                            items
+                                .iter()
+                                .all(|(_, value)| value == magic)
+                                .then(|| ())
+                                .ok_or("Different magics not supported.")?;
+                            magic
+                        }
+                        None => return Err("At least one version required.".to_string()),
+                    };
+                    let versions = items.into_iter().map(|(key, _)| key).collect();
+                    Ok(Message::ProposeVersions(versions, magic))
                 }
-            }
+                _ => Err("Map of supported versions required.".to_string()),
+            },
             Value::Integer(1) => {
                 let version = match values.next() {
-                    Some(Value::Integer(version)) => Version::from_u16(u16::try_from(version).map_err(|e| e.to_string())?),
+                    Some(Value::Integer(version)) => {
+                        Version::from_u16(u16::try_from(version).map_err(|e| e.to_string())?)
+                    }
                     _ => return Err("Integer version number required.".to_string()),
                 };
                 match values.next() {
                     Some(Value::Array(array)) => {
                         let mut items = array.iter();
                         let magic = match items.next() {
-                            Some(Value::Integer(magic)) => u32::try_from(*magic).map_err(|e| e.to_string())?,
+                            Some(Value::Integer(magic)) => {
+                                u32::try_from(*magic).map_err(|e| e.to_string())?
+                            }
                             _ => return Err("Integer version number required.".to_string()),
                         };
                         Ok(Message::AcceptVersion(version, magic))
                     }
                     _ => return Err("Array of extra parameters required.".to_string()),
                 }
-
             }
             Value::Integer(2) => {
                 match values.next() {
@@ -96,25 +106,25 @@ impl MessageOps for Message {
         match self {
             Message::ProposeVersions(versions, magic) => vec![
                 Integer(0),
-                Value::Map(versions.iter()
-                    .map(|v| v.to_values(*magic).unwrap())
-                    .collect()),
+                Value::Map(
+                    versions
+                        .iter()
+                        .map(|v| v.to_values(*magic).unwrap())
+                        .collect(),
+                ),
             ],
             Message::AcceptVersion(version, magic) => vec![
                 Value::Integer(1),
                 Value::Integer(version.to_u16().into()),
-                Array(vec![
-                      Value::Integer((*magic).into()),
-                      Bool(false),
-                ]),
+                Array(vec![Value::Integer((*magic).into()), Bool(false)]),
             ],
             Message::Refuse => vec![
                 Value::Integer(1),
                 // TODO: Get more information about RefuseReason format.
                 Array(vec![
-                      Value::Integer(2),
-                      Value::Integer(0),
-                      Value::Text("Refused.".to_string()),
+                    Value::Integer(2),
+                    Value::Integer(0),
+                    Value::Text("Refused.".to_string()),
                 ]),
             ],
         }
@@ -144,7 +154,7 @@ pub enum Version {
     C2N(i128),
     // 1: initial version
     // 2: added local-query mini-protocol
-    // 3: 
+    // 3:
     // 4: new queries added to local state query mini-protocol
     // 5: Allegra
     // 6: Mary
@@ -158,26 +168,17 @@ impl Version {
         debug!("VERSION {:?}", self);
         match self {
             &Version::N2N(v) => match v {
-                1..=3 => Ok((
-                    Value::Integer(v),
-                    Value::Integer(magic.into()),
-                )),
+                1..=3 => Ok((Value::Integer(v), Value::Integer(magic.into()))),
                 4..=7 => Ok((
                     Value::Integer(v),
-                    Value::Array(vec![
-                        Value::Integer(magic as i128),
-                        Value::Bool(false),
-                    ]),
+                    Value::Array(vec![Value::Integer(magic as i128), Value::Bool(false)]),
                 )),
                 _ => Err("Unsupported version.".to_string()),
             },
             &Version::C2N(v) => match v {
-                1..=9 => Ok((
-                    Value::Integer(0x8000 ^ v),
-                    Value::Integer(magic.into()),
-                )),
+                1..=9 => Ok((Value::Integer(0x8000 ^ v), Value::Integer(magic.into()))),
                 _ => Err("Unsupported version.".to_string()),
-            }
+            },
         }
     }
 
@@ -198,7 +199,8 @@ impl Version {
                 let mut values = match value {
                     Value::Array(params) => params,
                     _ => return Err("Parameters required.".to_string()),
-                }.into_iter();
+                }
+                .into_iter();
                 let magic = match values.next() {
                     Some(Value::Integer(magic)) => magic as u32,
                     _ => return Err("Magic required.".to_string()),
@@ -293,7 +295,10 @@ impl Handshake {
 
     pub async fn run(&mut self, connection: &mut Connection) -> Result<(Version, u32), Error> {
         connection.execute(self).execute().await?;
-        self.version.as_ref().map(|v| (v.clone(), self.network_magic)).ok_or("Handshake failed.".to_string())
+        self.version
+            .as_ref()
+            .map(|v| (v.clone(), self.network_magic))
+            .ok_or("Handshake failed.".to_string())
     }
 }
 
@@ -331,11 +336,17 @@ impl Protocol for Handshake {
         match self.state {
             State::Propose => {
                 self.state = State::Confirm;
-                Ok(Message::ProposeVersions(self.versions.clone(), self.network_magic))
+                Ok(Message::ProposeVersions(
+                    self.versions.clone(),
+                    self.network_magic,
+                ))
             }
             State::Confirm => {
                 self.state = State::Done;
-                let version = self.versions.last().ok_or("No versions available.".to_string())?;
+                let version = self
+                    .versions
+                    .last()
+                    .ok_or("No versions available.".to_string())?;
                 self.version = Some(version.clone());
                 Ok(Message::AcceptVersion(version.clone(), self.network_magic))
             }
@@ -349,19 +360,22 @@ impl Protocol for Handshake {
             State::Propose => {
                 self.state = State::Confirm;
             }
-            State::Confirm => {
-                match message {
-                    Message::AcceptVersion(version, magic) => {
-                        self.state = State::Done;
-                        self.version = self.versions.iter().filter(|v| **v == version).next().cloned();
-                        assert_eq!(magic, self.network_magic);
-                    }
-                    Message::Refuse => {
-                        self.state = State::Done;
-                    }
-                    _ => return Err("Unexpected message.".to_string()),
+            State::Confirm => match message {
+                Message::AcceptVersion(version, magic) => {
+                    self.state = State::Done;
+                    self.version = self
+                        .versions
+                        .iter()
+                        .filter(|v| **v == version)
+                        .next()
+                        .cloned();
+                    assert_eq!(magic, self.network_magic);
                 }
-            }
+                Message::Refuse => {
+                    self.state = State::Done;
+                }
+                _ => return Err("Unexpected message.".to_string()),
+            },
             State::Done => panic!("unexpected recv"),
         }
         Ok(())
@@ -370,8 +384,8 @@ impl Protocol for Handshake {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_eq;
     use serde_cbor::to_vec;
+    use std::assert_eq;
     use std::collections::BTreeMap;
 
     use super::*;

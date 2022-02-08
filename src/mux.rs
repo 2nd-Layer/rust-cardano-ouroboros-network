@@ -1,3 +1,7 @@
+use crate::{
+    Agency,
+    Protocol,
+};
 /**
 © 2020 - 2022 PERLUR Group
 
@@ -7,27 +11,39 @@ Re-licenses under MPLv2
 SPDX-License-Identifier: MPL-2.0
 
 */
-
-use byteorder::{ByteOrder, NetworkEndian};
-use crate::{
-    Protocol,
-    Agency,
+use byteorder::{
+    ByteOrder,
+    NetworkEndian,
 };
+use log::trace;
 use std::{
-    io,
-    time::{Instant, Duration},
-    sync::{Arc, Weak},
     collections::HashMap,
+    io,
+    sync::{
+        Arc,
+        Weak,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tokio;
 use tokio::{
-    task,
-    sync::{mpsc, Mutex},
+    io::{
+        AsyncRead,
+        AsyncReadExt,
+        AsyncWrite,
+        AsyncWriteExt,
+    },
     net::TcpStream,
     net::ToSocketAddrs,
-    io::{AsyncRead, AsyncWrite, AsyncWriteExt, AsyncReadExt},
+    sync::{
+        mpsc,
+        Mutex,
+    },
+    task,
 };
-use log::trace;
 
 #[cfg(target_family = "unix")]
 use tokio::net::UnixStream;
@@ -63,7 +79,10 @@ pub struct Connection {
 }
 
 impl Connection {
-    fn new(receiver: Box<dyn AsyncRead + Unpin + Send>, sender: Box<dyn AsyncWrite + Unpin + Send>) -> Self {
+    fn new(
+        receiver: Box<dyn AsyncRead + Unpin + Send>,
+        sender: Box<dyn AsyncWrite + Unpin + Send>,
+    ) -> Self {
         Connection {
             start_time: Instant::now(),
             sender: Mutex::new(sender),
@@ -86,10 +105,8 @@ impl Connection {
     }
 
     pub async fn tcp_connect(addr: impl ToSocketAddrs) -> Result<Self, io::Error> {
-        let stream = tokio::time::timeout(
-            Duration::from_secs(2),
-            TcpStream::connect(&addr),
-        ).await??;
+        let stream =
+            tokio::time::timeout(Duration::from_secs(2), TcpStream::connect(&addr)).await??;
         stream.set_nodelay(true)?;
         //stream.set_keepalive_ms(Some(10_000u32)).unwrap();
         Ok(Self::from_tcp_stream(stream))
@@ -97,10 +114,8 @@ impl Connection {
 
     #[cfg(target_family = "unix")]
     pub async fn unix_connect(addr: &str) -> Result<Self, io::Error> {
-        let stream = tokio::time::timeout(
-            Duration::from_secs(2),
-            UnixStream::connect(addr),
-        ).await??;
+        let stream =
+            tokio::time::timeout(Duration::from_secs(2), UnixStream::connect(addr)).await??;
         Ok(Self::from_unix_stream(stream))
     }
 
@@ -128,7 +143,10 @@ impl Connection {
     async fn send(&self, idx: u16, payload: &[u8]) {
         let mut sender = self.sender.lock().await;
         let start_time = Instant::now();
-        sender.write_u32(start_time.elapsed().as_micros() as u32).await.unwrap();
+        sender
+            .write_u32(start_time.elapsed().as_micros() as u32)
+            .await
+            .unwrap();
         sender.write_u16(idx).await.unwrap();
         sender.write_u16(payload.len() as u16).await.unwrap();
         sender.write(&payload).await.unwrap();
@@ -156,7 +174,7 @@ impl Connection {
                         let mut payload = vec![0u8; length];
                         receiver.read_exact(&mut payload).await.unwrap();
                         channels.lock().unwrap()[&idx].send(payload).unwrap();
-                    };
+                    }
                 })));
                 *demux_lock = Arc::downgrade(&demux);
                 demux
@@ -198,12 +216,18 @@ impl<'a, P: Protocol> Channel<'_, P> {
             }
             let role = self.protocol.role();
             if agency == role {
-                self.connection.send(self.idx, &self.protocol.send_bytes().unwrap()).await;
+                self.connection
+                    .send(self.idx, &self.protocol.send_bytes().unwrap())
+                    .await;
             } else {
                 let mut bytes = std::mem::replace(&mut self.bytes, Vec::new());
                 let new_data = self.connection.recv(&mut self.receiver).await;
                 bytes.extend(new_data);
-                self.bytes = self.protocol.receive_bytes(bytes).unwrap_or(Box::new([])).into_vec();
+                self.bytes = self
+                    .protocol
+                    .receive_bytes(bytes)
+                    .unwrap_or(Box::new([]))
+                    .into_vec();
                 if !self.bytes.is_empty() {
                     trace!("Keeping {} bytes for the next frame.", self.bytes.len());
                 }

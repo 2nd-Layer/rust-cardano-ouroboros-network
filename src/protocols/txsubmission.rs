@@ -1,3 +1,4 @@
+use crate::Message as MessageOps;
 /**
 Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
 © 2020 Andrew Westberg licensed under Apache-2.0
@@ -11,12 +12,20 @@ Re-licenses under MPLv2
 SPDX-License-Identifier: MPL-2.0
 
 */
-
-use crate::{Agency, Protocol, Error};
-use crate::Message as MessageOps;
+use crate::{
+    Agency,
+    Error,
+    Protocol,
+};
 use byteorder::WriteBytesExt;
-use log::{debug, error};
-use serde_cbor::{Value, to_vec};
+use log::{
+    debug,
+    error,
+};
+use serde_cbor::{
+    to_vec,
+    Value,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum State {
@@ -67,9 +76,7 @@ pub struct TxSubmission {
 
 impl Default for TxSubmission {
     fn default() -> Self {
-        TxSubmission {
-            state: State::Idle
-        }
+        TxSubmission { state: State::Idle }
     }
 }
 
@@ -126,7 +133,7 @@ impl Protocol for TxSubmission {
                 self.state = State::Idle;
                 Ok(payload)
             }
-            state => Err(format!("Unexpected state: {:?}", state))
+            state => Err(format!("Unexpected state: {:?}", state)),
         };
     }
 
@@ -158,7 +165,7 @@ impl Protocol for TxSubmission {
                 _ => {
                     error!("Unexpected cbor!")
                 }
-            }
+            },
             _ => panic!(),
         }
         Ok(())
