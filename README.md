@@ -1,5 +1,5 @@
 # Cardano Rust Ouroboros Network
-This crate implements the networking layer for the Ouroboros blockchain protocol. This networking crate is undergoing active refactoring to use [Tokio](https://tokio.rs/) ([see Project](https://github.com/2nd-Layer/rust-cardano-ouroboros-network/projects/6)); meanwhile it may be reasonable to use [pallas](https://github.com/txpipe/pallas), specifically  [pallas-machines](https://github.com/txpipe/pallas/tree/main/pallas-machines) and [pallas-multiplexer](https://github.com/txpipe/pallas/tree/main/pallas-multiplexer) which use MSPC channels which currenlty provide more stability.
+This crate implements the networking layer for the Ouroboros blockchain protocol. This networking crate is undergoing active refactoring to use [Tokio](https://tokio.rs/) ([see Project](https://github.com/2nd-Layer/rust-cardano-ouroboros-network/projects/6)); meanwhile it may be reasonable to use [pallas](https://github.com/txpipe/pallas), specifically  [pallas-miniprotocols](https://github.com/txpipe/pallas/tree/main/pallas-miniprotocols) and [pallas-multiplexer](https://github.com/txpipe/pallas/tree/main/pallas-multiplexer) which use MSPC channels which currenlty provide more stability.
 
 ## Mini-protocol Implementation Status
 
