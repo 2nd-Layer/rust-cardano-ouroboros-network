@@ -1,22 +1,31 @@
-/**
-Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
-© 2020 Andrew Westberg licensed under Apache-2.0
-
-Re-licensed under GPLv3 or LGPLv3
-© 2020 - 2021 PERLUR Group
-
-Re-licensed under MPLv2
-© 2022 PERLUR Group
-
-SPDX-License-Identifier: MPL-2.0
-
-*/
+//
+// Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
+// © 2020 Andrew Westberg licensed under Apache-2.0
+//
+// Re-licensed under GPLv3 or LGPLv3
+// © 2020 - 2021 PERLUR Group
+//
+// Re-licenses under MPLv2
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
 
 use blake2b_simd::Params;
-use cardano_ouroboros_network::{BlockHeader, BlockStore};
+use cardano_ouroboros_network::{
+    BlockHeader,
+    BlockStore,
+};
 use log::debug;
-use rusqlite::{named_params, Connection, Error};
-use std::{io, path::PathBuf};
+use rusqlite::{
+    named_params,
+    Connection,
+    Error,
+};
+use std::{
+    io,
+    path::PathBuf,
+};
 
 pub struct SQLiteBlockStore {
     pub db: Connection,

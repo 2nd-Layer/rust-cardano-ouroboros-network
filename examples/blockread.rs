@@ -1,26 +1,28 @@
-/**
-© 2020 - 2022 PERLUR Group
-
-SPDX-License-Identifier: GPL-3.0-only OR LGPL-3.0-only
-
-*/
+//
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
 
 use std::sync::Arc;
 
 use pallas::ledger::alonzo::{
+    crypto::hash_block_header,
     BlockWrapper,
     Fragment,
-    crypto::hash_block_header,
 };
 
 use oura::{
-    sources::MagicArg,
-    utils::{Utils, WithUtils},
-    mapper::EventWriter,
-    mapper::Config,
     mapper::ChainWellKnownInfo,
-    pipelining::SinkProvider,
+    mapper::Config,
+    mapper::EventWriter,
     pipelining::new_inter_stage_channel,
+    pipelining::SinkProvider,
+    sources::MagicArg,
+    utils::{
+        Utils,
+        WithUtils,
+    },
 };
 
 use log::error;
@@ -38,7 +40,13 @@ async fn blockread() -> Result<(), Box<dyn std::error::Error>> {
     let well_known = ChainWellKnownInfo::try_from_magic(*MagicArg::default()).unwrap();
     let utils = Arc::new(Utils::new(well_known, None));
     let writer = EventWriter::standalone(tx, None, config);
-    let sink_handle = WithUtils::new(oura::sinks::terminal::Config { throttle_min_span_millis: Some(0)  }, utils).bootstrap(rx)?;
+    let sink_handle = WithUtils::new(
+        oura::sinks::terminal::Config {
+            throttle_min_span_millis: Some(0),
+        },
+        utils,
+    )
+    .bootstrap(rx)?;
 
     let block_db = cfg.sdb.open_tree("blocks").unwrap();
 

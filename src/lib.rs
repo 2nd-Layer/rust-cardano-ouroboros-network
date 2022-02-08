@@ -1,27 +1,30 @@
-/**
-Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
-© 2020 Andrew Westberg licensed under Apache-2.0
-
-Re-licensed under GPLv3 or LGPLv3
-© 2020 - 2021 PERLUR Group
-
-Re-licenses under MPLv2
-© 2022 PERLUR Group
-
-SPDX-License-Identifier: MPL-2.0
-
-*/
+//
+// Forked-off from https://github.com/AndrewWestberg/cncli/ on 2020-11-30
+// © 2020 Andrew Westberg licensed under Apache-2.0
+//
+// Re-licensed under GPLv3 or LGPLv3
+// © 2020 - 2021 PERLUR Group
+//
+// Re-licenses under MPLv2
+// © 2022 PERLUR Group
+//
+// SPDX-License-Identifier: MPL-2.0
+//
 
 pub mod mux;
 pub mod protocols;
 
-use std::io;
-use serde_cbor::{Value, de::Deserializer, to_vec};
 use log::debug;
+use serde_cbor::{
+    de::Deserializer,
+    to_vec,
+    Value,
+};
+use std::io;
 
 //
-// Error will be string for now. But please use `Result<_, dyn error::Error` if you want to stay
-// compatible.
+// Error will be string for now. But please use `Result<_, dyn error::Error` if
+// you want to stay compatible.
 //
 type Error = String;
 
@@ -91,14 +94,12 @@ pub trait Protocol {
                     debug!("Demux offset: {}", d.byte_offset());
                     last_offset = d.byte_offset();
                 }
-                Err(e) => {
-                    match e.is_eof() {
-                        true => {
-                            return Some(Box::from(&data[last_offset..]));
-                        }
-                        false => panic!("Error: {:?}", e),
+                Err(e) => match e.is_eof() {
+                    true => {
+                        return Some(Box::from(&data[last_offset..]));
                     }
-                }
+                    false => panic!("Error: {:?}", e),
+                },
             }
         }
         assert_eq!(d.byte_offset(), data.len());
@@ -116,8 +117,12 @@ pub enum Agency {
     None,
 }
 
-pub trait BlockStore : Send {
-    fn save_block(&mut self, pending_blocks: &mut Vec<BlockHeader>, network_magic: u32) -> io::Result<()>;
+pub trait BlockStore: Send {
+    fn save_block(
+        &mut self,
+        pending_blocks: &mut Vec<BlockHeader>,
+        network_magic: u32,
+    ) -> io::Result<()>;
     fn load_blocks(&mut self) -> Option<Vec<(i64, Vec<u8>)>>;
 }
 
