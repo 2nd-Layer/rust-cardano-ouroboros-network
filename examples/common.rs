@@ -7,8 +7,6 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 
-use std::path::PathBuf;
-
 use std::sync::Arc;
 
 use pallas::ledger::alonzo::{
@@ -30,13 +28,19 @@ use oura::{
     },
 };
 
+use cardano_ouroboros_network::{
+    model::Point,
+};
+
 #[derive(Clone)]
 pub struct Config {
-    pub db: PathBuf,
     pub sdb: sled::Db,
     pub host: String,
     pub magic: u32,
     pub writer: EventWriter,
+    pub byron_mainnet: Point,
+    pub byron_testnet: Point,
+    pub byron_guild: Point,
 }
 
 pub fn init() -> Config {
@@ -47,11 +51,22 @@ impl Config {
     fn new() -> Config {
         env_logger::init();
         Config {
-            db: PathBuf::from("sqlite.db"),
             sdb: sled::open(".db").unwrap(),
             host: "relays-new.cardano-mainnet.iohk.io:3001".to_string(),
             magic: 764824073,
             writer: oura_init().unwrap(),
+            byron_mainnet: (
+                4492799,
+                "f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457",
+            ).try_into().unwrap(),
+            byron_testnet: (
+                1598399,
+                "7e16781b40ebf8b6da18f7b5e8ade855d6738095ef2f1c58c77e88b6e45997a4",
+            ).try_into().unwrap(),
+            byron_guild: (
+                719,
+                "e5400faf19e712ebc5ff5b4b44cecb2b140d1cca25a011e36a91d89e97f53e2e",
+            ).try_into().unwrap(),
         }
     }
 

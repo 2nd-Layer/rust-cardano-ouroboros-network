@@ -120,7 +120,7 @@ impl Connection {
         self.start_time.elapsed()
     }
 
-    pub(crate) fn channel<'a>(&'a mut self, idx: u16) -> Channel<'a> {
+    pub fn channel<'a>(&'a mut self, idx: u16) -> Channel<'a> {
         let receiver = self.register(idx);
         let demux = self.run_demux();
         Channel {
@@ -185,7 +185,7 @@ impl Connection {
     }
 }
 
-pub(crate) struct Channel<'a> {
+pub struct Channel<'a> {
     idx: u16,
     receiver: Receiver<Payload>,
     connection: &'a mut Connection,

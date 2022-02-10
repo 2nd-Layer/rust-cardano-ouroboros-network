@@ -12,6 +12,7 @@
 //
 
 pub mod mux;
+pub mod model;
 pub mod protocols;
 
 use log::debug;
@@ -35,7 +36,6 @@ pub trait Message: std::fmt::Debug + Sized {
 
     fn to_bytes(&self) -> Vec<u8> {
         let values = self.to_values();
-        debug!("Tx: message {:?}", values);
         to_vec(&values).unwrap()
     }
 }
@@ -70,6 +70,8 @@ pub trait Protocol {
         debug_assert_eq!(self.agency(), self.role());
         // TODO: Protocol should really return an error.
         let message = self.send().unwrap();
+        let info = message.info();
+        debug!("Tx: message {}", info);
         let bytes = message.to_bytes();
         debug!("State: {:?}", self.state());
         Some(bytes)

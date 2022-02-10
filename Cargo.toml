@@ -34,19 +34,10 @@ tokio = { version = "1.15.0", features = ["full"]}
 [dev-dependencies]
 env_logger = "0.9.0"
 futures = "0.3.8"
-rusqlite = { version = "0.26.0", features = ["bundled"] }
 oura = "1.1.0"
 pallas = "0.4.0"
 sled = "0.34.7"
 
 [[example]]
 name = "common"
-crate-type = ["staticlib"]
-
-[[example]]
-name = "sqlite"
-crate-type = ["staticlib"]
-
-[[example]]
-name = "pooltool"
 crate-type = ["staticlib"]

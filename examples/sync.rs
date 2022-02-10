@@ -9,15 +9,13 @@
 
 use cardano_ouroboros_network::{
     mux::Connection,
-    protocols::chainsync::{
-        ChainSync,
-        Mode,
-    },
     protocols::handshake::Handshake,
+    protocols::chainsync::{ChainSync, Reply},
 };
 
+use log::info;
+
 mod common;
-mod sqlite;
 
 async fn chainsync() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = common::init();
@@ -31,15 +29,24 @@ async fn chainsync() -> Result<(), Box<dyn std::error::Error>> {
         .build()?
         .run(&mut connection)
         .await?;
-    let mut chainsync = ChainSync {
-        mode: Mode::Sync,
-        network_magic: cfg.magic,
-        store: Some(Box::new(sqlite::SQLiteBlockStore::new(&cfg.db)?)),
-        ..Default::default()
-    };
 
-    chainsync.run(&mut connection).await?;
-    Ok(())
+    let mut chainsync = ChainSync::builder()
+        .build(&mut connection);
+    chainsync.find_intersect(vec![
+        cfg.byron_mainnet,
+        cfg.byron_testnet,
+        cfg.byron_guild,
+    ]).await?;
+    loop {
+        match chainsync.request_next().await? {
+            Reply::Forward(header, _tip) => {
+                info!("Block header: block={} slot={}", header.block_number, header.slot_number);
+            }
+            Reply::Backward(point, _tip) => {
+                info!("Roll backward: slot={}", point.slot);
+            }
+        }
+    }
 }
 
 #[tokio::main]
