@@ -21,8 +21,6 @@ use pallas::ledger::alonzo::{
     Fragment,
 };
 
-use blake2b_simd::Params;
-
 use oura::{
     mapper::ChainWellKnownInfo,
     mapper::Config,
@@ -35,8 +33,6 @@ use oura::{
         WithUtils,
     },
 };
-
-use log::debug;
 
 mod common;
 
@@ -64,8 +60,8 @@ async fn blockfetch() -> Result<(), Box<dyn std::error::Error>> {
             26250057,
             hex::decode("5fec758c8aaff4a7683c27b075dc3984d8d982839cc56470a682d1411c9f8198")?,
         )
-        .build()?;
-    let mut blocks = blockfetch.run(&mut connection).await?;
+        .build(&mut connection)?;
+    let mut blocks = blockfetch.run().await?;
 
     let (tx, rx) = new_inter_stage_channel(None);
     let config = Config {
@@ -90,7 +86,7 @@ async fn blockfetch() -> Result<(), Box<dyn std::error::Error>> {
         let block = BlockWrapper::decode_fragment(&block[..])?;
         let hash = hash_block_header(&block.1.header);
         //debug!("HASH: {}", hash);
-        block_db.insert(&hash, &*block_raw);
+        block_db.insert(&hash, &*block_raw)?;
         writer.crawl(&block.1).unwrap();
     }
 

@@ -129,7 +129,7 @@ impl ChainSync {
     const FIVE_SECS: Duration = Duration::from_secs(5);
 
     pub async fn run(&mut self, connection: &mut Connection) -> Result<(), Error> {
-        connection.execute(self).execute().await
+        connection.channel(self.protocol_id()).execute(self).await
     }
 
     fn save_block(&mut self, msg_roll_forward: &BlockHeader, is_tip: bool) -> io::Result<()> {
