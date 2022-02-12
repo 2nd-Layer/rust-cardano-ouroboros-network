@@ -13,31 +13,6 @@ use cardano_ouroboros_network::{
     protocols::handshake::Handshake,
 };
 
-use std::sync::Arc;
-
-use pallas::ledger::alonzo::{
-    crypto::hash_block_header,
-    BlockWrapper,
-    Fragment,
-};
-
-use blake2b_simd::Params;
-
-use oura::{
-    mapper::ChainWellKnownInfo,
-    mapper::Config,
-    mapper::EventWriter,
-    pipelining::new_inter_stage_channel,
-    pipelining::SinkProvider,
-    sources::MagicArg,
-    utils::{
-        Utils,
-        WithUtils,
-    },
-};
-
-use log::debug;
-
 mod common;
 
 async fn blockfetch() -> Result<(), Box<dyn std::error::Error>> {
@@ -64,37 +39,13 @@ async fn blockfetch() -> Result<(), Box<dyn std::error::Error>> {
             26250057,
             hex::decode("5fec758c8aaff4a7683c27b075dc3984d8d982839cc56470a682d1411c9f8198")?,
         )
-        .build()?;
-    let mut blocks = blockfetch.run(&mut connection).await?;
-
-    let (tx, rx) = new_inter_stage_channel(None);
-    let config = Config {
-        include_block_end_events: true,
-        ..Default::default()
-    };
-
-    let well_known = ChainWellKnownInfo::try_from_magic(*MagicArg::default()).unwrap();
-    let utils = Arc::new(Utils::new(well_known, None));
-    let writer = EventWriter::standalone(tx, None, config);
-    let sink_handle = WithUtils::new(
-        oura::sinks::terminal::Config {
-            throttle_min_span_millis: Some(0),
-        },
-        utils,
-    )
-    .bootstrap(rx)?;
-    let block_db = cfg.sdb.open_tree("blocks").unwrap();
+        .build(&mut connection)?;
+    let mut blocks = blockfetch.run().await?;
 
     while let Some(block) = blocks.next().await? {
-        let block_raw = block.clone();
-        let block = BlockWrapper::decode_fragment(&block[..])?;
-        let hash = hash_block_header(&block.1.header);
-        //debug!("HASH: {}", hash);
-        block_db.insert(&hash, &*block_raw);
-        writer.crawl(&block.1).unwrap();
+        cfg.handle_block(&block)?;
     }
 
-    sink_handle.join().unwrap();
     Ok(())
 }
 

@@ -11,23 +11,14 @@ use cardano_ouroboros_network::{
     mux::Connection,
     protocols::chainsync::{
         ChainSync,
-        Listener,
-        Mode,
+        Intersect,
+        Reply,
     },
     protocols::handshake::Handshake,
-    BlockHeader,
 };
 use log::info;
 
 mod common;
-
-struct Handler {}
-
-impl Listener for Handler {
-    fn handle_tip(&mut self, msg_roll_forward: &BlockHeader) {
-        info!("Tip reached: {:?}!", msg_roll_forward);
-    }
-}
 
 async fn tip() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = common::init();
@@ -41,15 +32,27 @@ async fn tip() -> Result<(), Box<dyn std::error::Error>> {
         .build()?
         .run(&mut connection)
         .await?;
-    let mut chainsync = ChainSync {
-        mode: Mode::SendTip,
-        network_magic: cfg.magic,
-        notify: Some(Box::new(Handler {})),
-        ..Default::default()
-    };
 
-    chainsync.run(&mut connection).await?;
-    Ok(())
+    let mut chainsync = ChainSync::builder().build(&mut connection);
+    let intersect = chainsync
+        .find_intersect(vec![cfg.byron_mainnet, cfg.byron_testnet, cfg.byron_guild])
+        .await?;
+    match intersect {
+        Intersect::Found(point, tip) => info!("= {:?}, {:?}", point, tip),
+        _ => panic!(),
+    };
+    loop {
+        match chainsync.request_next().await? {
+            Reply::Forward(header, tip) => {
+                info!("+ {:?}, {:?}", header, tip);
+                if header.hash == tip.hash {
+                    info!("Reached tip!");
+                }
+                chainsync.find_intersect(vec![tip.into()]).await?;
+            }
+            Reply::Backward(slot, tip) => info!("- {:?}, {:?}", slot, tip),
+        }
+    }
 }
 
 #[tokio::main]

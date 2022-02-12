@@ -7,10 +7,9 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 
-use crate::mux::{
-    Channel,
-    Connection,
-};
+use crate::mux::Channel;
+#[cfg(not(test))]
+use crate::mux::Connection;
 use crate::Message as MessageOps;
 use crate::{
     Agency,
@@ -105,8 +104,15 @@ impl Builder {
         self.last = Some((slot, hash));
         self
     }
-    pub fn build(&mut self) -> Result<BlockFetch, Error> {
+    pub fn build<'a>(
+        &mut self,
+        #[cfg(not(test))] connection: &'a mut Connection,
+    ) -> Result<BlockFetch<'a>, Error> {
         Ok(BlockFetch {
+            #[cfg(not(test))]
+            channel: Some(connection.channel(0x0003)),
+            #[cfg(test)]
+            channel: None,
             config: Config {
                 first: self.first.as_ref().ok_or("First point required.")?.clone(),
                 last: self.last.as_ref().ok_or("Last point required.")?.clone(),
@@ -124,7 +130,8 @@ pub struct Config {
     last: Point,
 }
 
-pub struct BlockFetch {
+pub struct BlockFetch<'a> {
+    channel: Option<Channel<'a>>,
     config: Config,
     state: State,
     result: Vec<Box<[u8]>>,
@@ -132,48 +139,53 @@ pub struct BlockFetch {
     done: bool,
 }
 
-impl BlockFetch {
+impl<'a> BlockFetch<'a> {
     pub fn builder() -> Builder {
         Default::default()
     }
 
-    pub async fn run<'a>(
-        &'a mut self,
-        connection: &'a mut Connection,
-    ) -> Result<BlockStream<'a>, Error> {
+    pub async fn run<'b>(&'b mut self) -> Result<BlockStream<'a, 'b>, Error>
+    where
+        'a: 'b,
+    {
         // Start the protocol and prefetch first block into `self.result`.
-        self.running = true;
-        let mut channel = connection.execute(self);
-        channel.execute().await?;
-        Ok(BlockStream { channel })
+        //self.running = true;
+        // TODO: Do something with the Option trick.
+        let mut channel = self
+            .channel
+            .take()
+            .ok_or("Channel not available.".to_string())?;
+        channel.execute(self).await?;
+        self.channel = Some(channel);
+        Ok(BlockStream { blockfetch: self })
     }
 }
 
-pub struct BlockStream<'a> {
-    channel: Channel<'a, BlockFetch>,
+pub struct BlockStream<'a, 'b> {
+    blockfetch: &'b mut BlockFetch<'a>,
 }
 
-impl BlockStream<'_> {
+impl BlockStream<'_, '_> {
     pub async fn next(&mut self) -> Result<Option<Box<[u8]>>, Error> {
-        if self.channel.protocol.result.is_empty() {
-            match self.channel.protocol.state() {
+        if self.blockfetch.result.is_empty() {
+            match self.blockfetch.state() {
                 State::Streaming => {
-                    self.channel.protocol.running = true;
-                    self.channel.execute().await?
+                    self.blockfetch.running = true;
+                    //self.blockfetch.channel.execute(self.blockfetch).await?
                 }
                 State::Idle => return Ok(None),
                 _ => panic!("Unexpected state."),
             }
         }
-        if self.channel.protocol.result.is_empty() {
+        if self.blockfetch.result.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(self.channel.protocol.result.remove(0)))
+            Ok(Some(self.blockfetch.result.remove(0)))
         }
     }
 }
 
-impl Protocol for BlockFetch {
+impl Protocol for BlockFetch<'_> {
     type State = State;
     type Message = Message;
 

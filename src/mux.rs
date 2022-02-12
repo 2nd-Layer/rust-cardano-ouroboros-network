@@ -123,21 +123,26 @@ impl Connection {
         self.start_time.elapsed()
     }
 
-    pub(crate) fn execute<'a, P>(&'a mut self, protocol: &'a mut P) -> Channel<'a, P>
-    where
-        P: Protocol,
-    {
-        Channel::new(protocol, self)
+    pub fn channel<'a>(&'a mut self, idx: u16) -> Channel<'a> {
+        let receiver = self.register(idx);
+        let demux = self.run_demux();
+        Channel {
+            idx,
+            receiver,
+            connection: self,
+            _demux: demux,
+            bytes: Vec::new(),
+        }
     }
 
     fn register(&mut self, idx: u16) -> Receiver<Payload> {
-        trace!("Registering protocol {}.", idx);
+        trace!("Registering channel {}.", idx);
         let (tx, rx) = mpsc::unbounded_channel();
         self.channels.lock().unwrap().insert(idx, tx);
         rx
     }
     fn unregister(&mut self, idx: u16) {
-        trace!("Unregistering protocol {}.", idx);
+        trace!("Unregistering channel {}.", idx);
         self.channels.lock().unwrap().remove(&idx);
     }
     async fn send(&self, idx: u16, payload: &[u8]) {
@@ -183,48 +188,33 @@ impl Connection {
     }
 }
 
-pub(crate) struct Channel<'a, P: Protocol> {
+pub struct Channel<'a> {
     idx: u16,
     receiver: Receiver<Payload>,
-    pub(crate) protocol: &'a mut P,
     connection: &'a mut Connection,
     _demux: Arc<Demux>,
-    bytes: Vec<u8>,
+    pub(crate) bytes: Vec<u8>,
 }
 
-impl<'a, P: Protocol> Channel<'_, P> {
-    fn new(protocol: &'a mut P, connection: &'a mut Connection) -> Channel<'a, P> {
-        let idx = protocol.protocol_id();
-        let receiver = connection.register(idx);
-        let demux = connection.run_demux();
-        Channel {
-            idx,
-            receiver,
-            protocol,
-            connection,
-            _demux: demux,
-            bytes: Vec::new(),
-        }
-    }
-
-    pub(crate) async fn execute(&mut self) -> Result<(), Error> {
+impl<'a> Channel<'a> {
+    pub(crate) async fn execute<P>(&mut self, protocol: &mut P) -> Result<(), Error>
+    where
+        P: Protocol,
+    {
         trace!("Executing protocol {}.", self.idx);
         loop {
-            let agency = self.protocol.agency();
+            let agency = protocol.agency();
             if agency == Agency::None {
                 break;
             }
-            let role = self.protocol.role();
+            let role = protocol.role();
             if agency == role {
-                self.connection
-                    .send(self.idx, &self.protocol.send_bytes().unwrap())
-                    .await;
+                self.send(&protocol.send_bytes().unwrap()).await?;
             } else {
                 let mut bytes = std::mem::replace(&mut self.bytes, Vec::new());
-                let new_data = self.connection.recv(&mut self.receiver).await;
+                let new_data = self.recv().await?;
                 bytes.extend(new_data);
-                self.bytes = self
-                    .protocol
+                self.bytes = protocol
                     .receive_bytes(bytes)
                     .unwrap_or(Box::new([]))
                     .into_vec();
@@ -235,9 +225,17 @@ impl<'a, P: Protocol> Channel<'_, P> {
         }
         Ok(())
     }
+
+    async fn send(&mut self, data: &[u8]) -> Result<(), Error> {
+        Ok(self.connection.send(self.idx, &data).await)
+    }
+
+    async fn recv(&mut self) -> Result<Vec<u8>, Error> {
+        Ok(self.connection.recv(&mut self.receiver).await)
+    }
 }
 
-impl<'a, P: Protocol> Drop for Channel<'_, P> {
+impl Drop for Channel<'_> {
     fn drop(&mut self) {
         self.connection.unregister(self.idx);
     }
