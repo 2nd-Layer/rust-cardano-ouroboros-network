@@ -104,7 +104,10 @@ impl Builder {
         self.last = Some((slot, hash));
         self
     }
-    pub fn build<'a>(&mut self, #[cfg(not(test))]connection: &'a mut Connection) -> Result<BlockFetch<'a>, Error> {
+    pub fn build<'a>(
+        &mut self,
+        #[cfg(not(test))] connection: &'a mut Connection,
+    ) -> Result<BlockFetch<'a>, Error> {
         Ok(BlockFetch {
             #[cfg(not(test))]
             channel: Some(connection.channel(0x0003)),
@@ -148,7 +151,10 @@ impl<'a> BlockFetch<'a> {
         // Start the protocol and prefetch first block into `self.result`.
         //self.running = true;
         // TODO: Do something with the Option trick.
-        let mut channel = self.channel.take().ok_or("Channel not available.".to_string())?;
+        let mut channel = self
+            .channel
+            .take()
+            .ok_or("Channel not available.".to_string())?;
         channel.execute(self).await?;
         self.channel = Some(channel);
         Ok(BlockStream { blockfetch: self })

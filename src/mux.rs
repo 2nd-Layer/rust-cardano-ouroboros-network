@@ -7,7 +7,10 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 
-use crate::{Protocol, Agency};
+use crate::{
+    Agency,
+    Protocol,
+};
 use byteorder::{
     ByteOrder,
     NetworkEndian,
@@ -224,15 +227,11 @@ impl<'a> Channel<'a> {
     }
 
     async fn send(&mut self, data: &[u8]) -> Result<(), Error> {
-        Ok(self.connection
-            .send(self.idx, &data)
-            .await)
+        Ok(self.connection.send(self.idx, &data).await)
     }
 
     async fn recv(&mut self) -> Result<Vec<u8>, Error> {
-        Ok(self.connection
-            .recv(&mut self.receiver)
-            .await)
+        Ok(self.connection.recv(&mut self.receiver).await)
     }
 }
 

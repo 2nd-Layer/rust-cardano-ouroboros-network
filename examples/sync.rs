@@ -9,8 +9,11 @@
 
 use cardano_ouroboros_network::{
     mux::Connection,
+    protocols::chainsync::{
+        ChainSync,
+        Reply,
+    },
     protocols::handshake::Handshake,
-    protocols::chainsync::{ChainSync, Reply},
 };
 
 use log::info;
@@ -30,17 +33,17 @@ async fn chainsync() -> Result<(), Box<dyn std::error::Error>> {
         .run(&mut connection)
         .await?;
 
-    let mut chainsync = ChainSync::builder()
-        .build(&mut connection);
-    chainsync.find_intersect(vec![
-        cfg.byron_mainnet,
-        cfg.byron_testnet,
-        cfg.byron_guild,
-    ]).await?;
+    let mut chainsync = ChainSync::builder().build(&mut connection);
+    chainsync
+        .find_intersect(vec![cfg.byron_mainnet, cfg.byron_testnet, cfg.byron_guild])
+        .await?;
     loop {
         match chainsync.request_next().await? {
             Reply::Forward(header, _tip) => {
-                info!("Block header: block={} slot={}", header.block_number, header.slot_number);
+                info!(
+                    "Block header: block={} slot={}",
+                    header.block_number, header.slot_number
+                );
             }
             Reply::Backward(point, _tip) => {
                 info!("Roll backward: slot={}", point.slot);

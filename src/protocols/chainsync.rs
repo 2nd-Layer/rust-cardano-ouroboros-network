@@ -16,19 +16,17 @@ use serde_cbor::{
     Value,
 };
 
+use crate::BlockHeader;
 use crate::Message as MessageOps;
 use crate::{
+    model::Point,
+    model::Tip,
+    mux::Channel,
+    mux::Connection,
+    protocols::Values,
     Agency,
     Error,
     Protocol,
-    mux::Connection,
-    mux::Channel,
-    model::Point,
-    model::Tip,
-    protocols::Values,
-};
-use crate::{
-    BlockHeader,
 };
 
 use blake2b_simd::Params;
@@ -64,17 +62,9 @@ impl MessageOps for Message {
                 parse_wrapped_header(array.array()?)?,
                 parse_tip(array.array()?)?,
             ),
-            3 => Message::RollBackward(
-                parse_point(array.array()?)?,
-                parse_tip(array.array()?)?,
-            ),
-            5 => Message::IntersectFound(
-                parse_point(array.array()?)?,
-                parse_tip(array.array()?)?,
-            ),
-            6 => Message::IntersectNotFound(
-                parse_tip(array.array()?)?,
-            ),
+            3 => Message::RollBackward(parse_point(array.array()?)?, parse_tip(array.array()?)?),
+            5 => Message::IntersectFound(parse_point(array.array()?)?, parse_tip(array.array()?)?),
+            6 => Message::IntersectNotFound(parse_tip(array.array()?)?),
             7 => Message::Done,
             other => return Err(format!("Unexpected message: {}.", other)),
         };
@@ -84,15 +74,13 @@ impl MessageOps for Message {
 
     fn to_values(&self) -> Vec<Value> {
         match self {
-            Message::RequestNext => vec![
-                Value::Integer(0),
-            ],
+            Message::RequestNext => vec![Value::Integer(0)],
             Message::FindIntersect(points) => vec![
                 Value::Integer(4),
                 Value::Array(
                     points
                         .iter()
-                        .map(|Point {slot, hash}| {
+                        .map(|Point { slot, hash }| {
                             Value::Array(vec![
                                 Value::Integer(*slot as i128),
                                 Value::Bytes(hash.clone()),
@@ -107,18 +95,15 @@ impl MessageOps for Message {
 
     fn info(&self) -> String {
         match self {
-            Message::RollForward(header, _tip) => format!(
-                "block={} slot={}",
-                header.block_number,
-                header.slot_number,
-            ),
+            Message::RollForward(header, _tip) => {
+                format!("block={} slot={}", header.block_number, header.slot_number,)
+            }
             other => format!("{:?}", other),
         }
     }
 }
 
-pub struct ChainSyncBuilder {
-}
+pub struct ChainSyncBuilder {}
 
 impl ChainSyncBuilder {
     pub fn build<'a>(self, connection: &'a mut Connection) -> ChainSync<'a> {
@@ -159,8 +144,7 @@ pub struct ChainSync<'a> {
 
 impl<'a> ChainSync<'a> {
     pub fn builder() -> ChainSyncBuilder {
-        ChainSyncBuilder {
-        }
+        ChainSyncBuilder {}
     }
 
     pub async fn find_intersect(&mut self, points: Vec<Point>) -> Result<Intersect, Error> {
@@ -177,7 +161,10 @@ impl<'a> ChainSync<'a> {
 
     async fn execute(&mut self) -> Result<(), Error> {
         // TODO: Do something with the Option trick.
-        let mut channel = self.channel.take().ok_or("Channel not available.".to_string())?;
+        let mut channel = self
+            .channel
+            .take()
+            .ok_or("Channel not available.".to_string())?;
         channel.execute(self).await?;
         self.channel = Some(channel);
         Ok(())
@@ -215,18 +202,16 @@ impl Protocol for ChainSync<'_> {
 
     fn send(&mut self) -> Result<Self::Message, Error> {
         match self.state {
-            State::Idle => {
-                match self.query.as_ref().unwrap() {
-                    Query::Intersect(points) => {
-                        self.state = State::Intersect;
-                        Ok(Message::FindIntersect(points.clone()))
-                    }
-                    Query::Reply => {
-                        self.state = State::CanAwait;
-                        Ok(Message::RequestNext)
-                    }
+            State::Idle => match self.query.as_ref().unwrap() {
+                Query::Intersect(points) => {
+                    self.state = State::Intersect;
+                    Ok(Message::FindIntersect(points.clone()))
                 }
-            }
+                Query::Reply => {
+                    self.state = State::CanAwait;
+                    Ok(Message::RequestNext)
+                }
+            },
             other => Err(format!("Unsupported: {:?}", other)),
         }
     }
@@ -330,15 +315,12 @@ fn parse_wrapped_header(mut array: Values) -> Result<BlockHeader, Error> {
         .finalize();
     msg_roll_forward.hash = hash.as_bytes().to_owned();
 
-    let block_header: Value =
-        de::from_slice(&wrapped_block_header_bytes[..]).unwrap();
+    let block_header: Value = de::from_slice(&wrapped_block_header_bytes[..]).unwrap();
     match block_header {
         Value::Array(block_header_array) => match &block_header_array[0] {
             Value::Array(block_header_array_inner) => {
-                msg_roll_forward.block_number =
-                    block_header_array_inner[0].integer()? as i64;
-                msg_roll_forward.slot_number =
-                    block_header_array_inner[1].integer()? as i64;
+                msg_roll_forward.block_number = block_header_array_inner[0].integer()? as i64;
+                msg_roll_forward.slot_number = block_header_array_inner[1].integer()? as i64;
                 msg_roll_forward
                     .prev_hash
                     .append(&mut block_header_array_inner[2].bytes()?.clone());
@@ -370,18 +352,15 @@ fn parse_wrapped_header(mut array: Values) -> Result<BlockHeader, Error> {
                     }
                     _ => return Err("invalid cbor! code: 341".to_string()),
                 }
-                msg_roll_forward.block_size =
-                    block_header_array_inner[7].integer()? as i64;
+                msg_roll_forward.block_size = block_header_array_inner[7].integer()? as i64;
                 msg_roll_forward
                     .block_body_hash
                     .append(&mut block_header_array_inner[8].bytes()?.clone());
                 msg_roll_forward
                     .pool_opcert
                     .append(&mut block_header_array_inner[9].bytes()?.clone());
-                msg_roll_forward.unknown_0 =
-                    block_header_array_inner[10].integer()? as i64;
-                msg_roll_forward.unknown_1 =
-                    block_header_array_inner[11].integer()? as i64;
+                msg_roll_forward.unknown_0 = block_header_array_inner[10].integer()? as i64;
+                msg_roll_forward.unknown_1 = block_header_array_inner[11].integer()? as i64;
                 msg_roll_forward
                     .unknown_2
                     .append(&mut block_header_array_inner[12].bytes()?.clone());

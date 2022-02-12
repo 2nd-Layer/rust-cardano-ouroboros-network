@@ -11,8 +11,8 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 
-pub mod mux;
 pub mod model;
+pub mod mux;
 pub mod protocols;
 
 use log::debug;

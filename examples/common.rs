@@ -28,9 +28,7 @@ use oura::{
     },
 };
 
-use cardano_ouroboros_network::{
-    model::Point,
-};
+use cardano_ouroboros_network::model::Point;
 
 #[derive(Clone)]
 pub struct Config {
@@ -58,15 +56,21 @@ impl Config {
             byron_mainnet: (
                 4492799,
                 "f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457",
-            ).try_into().unwrap(),
+            )
+                .try_into()
+                .unwrap(),
             byron_testnet: (
                 1598399,
                 "7e16781b40ebf8b6da18f7b5e8ade855d6738095ef2f1c58c77e88b6e45997a4",
-            ).try_into().unwrap(),
+            )
+                .try_into()
+                .unwrap(),
             byron_guild: (
                 719,
                 "e5400faf19e712ebc5ff5b4b44cecb2b140d1cca25a011e36a91d89e97f53e2e",
-            ).try_into().unwrap(),
+            )
+                .try_into()
+                .unwrap(),
         }
     }
 

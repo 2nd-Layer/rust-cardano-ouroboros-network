@@ -9,8 +9,12 @@
 
 use cardano_ouroboros_network::{
     mux::Connection,
+    protocols::chainsync::{
+        ChainSync,
+        Intersect,
+        Reply,
+    },
     protocols::handshake::Handshake,
-    protocols::chainsync::{ChainSync, Intersect, Reply},
 };
 use log::info;
 
@@ -29,13 +33,10 @@ async fn tip() -> Result<(), Box<dyn std::error::Error>> {
         .run(&mut connection)
         .await?;
 
-    let mut chainsync = ChainSync::builder()
-        .build(&mut connection);
-    let intersect = chainsync.find_intersect(vec![
-        cfg.byron_mainnet,
-        cfg.byron_testnet,
-        cfg.byron_guild,
-    ]).await?;
+    let mut chainsync = ChainSync::builder().build(&mut connection);
+    let intersect = chainsync
+        .find_intersect(vec![cfg.byron_mainnet, cfg.byron_testnet, cfg.byron_guild])
+        .await?;
     match intersect {
         Intersect::Found(point, tip) => info!("= {:?}, {:?}", point, tip),
         _ => panic!(),
