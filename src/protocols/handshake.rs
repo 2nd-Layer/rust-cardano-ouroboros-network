@@ -17,6 +17,7 @@ use crate::{
     Agency,
     Error,
     Protocol,
+    protocols::execute,
 };
 use log::{
     debug,
@@ -290,7 +291,8 @@ impl Handshake {
     }
 
     pub async fn run(&mut self, connection: &mut Connection) -> Result<(Version, u32), Error> {
-        connection.channel(self.protocol_id()).execute(self).await?;
+        let mut channel = connection.channel(self.protocol_id());
+        execute(&mut channel, self).await?;
         self.version
             .as_ref()
             .map(|v| (v.clone(), self.network_magic))

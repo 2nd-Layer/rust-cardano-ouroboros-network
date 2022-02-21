@@ -27,6 +27,7 @@ use crate::{
     Agency,
     Error,
     Protocol,
+    protocols::execute,
 };
 
 use blake2b_simd::Params;
@@ -165,7 +166,7 @@ impl<'a> ChainSync<'a> {
             .channel
             .take()
             .ok_or("Channel not available.".to_string())?;
-        channel.execute(self).await?;
+        execute(&mut channel, self).await?;
         self.channel = Some(channel);
         Ok(())
     }

@@ -15,6 +15,7 @@ use crate::{
     Agency,
     Error,
     Protocol,
+    protocols::execute,
 };
 use serde_cbor::Value;
 
@@ -155,7 +156,7 @@ impl<'a> BlockFetch<'a> {
             .channel
             .take()
             .ok_or("Channel not available.".to_string())?;
-        channel.execute(self).await?;
+        execute(&mut channel, self).await?;
         self.channel = Some(channel);
         Ok(BlockStream { blockfetch: self })
     }

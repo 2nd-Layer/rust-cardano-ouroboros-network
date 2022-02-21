@@ -7,10 +7,6 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 
-use crate::{
-    Agency,
-    Protocol,
-};
 use byteorder::{
     ByteOrder,
     NetworkEndian,
@@ -197,40 +193,15 @@ pub struct Channel<'a> {
 }
 
 impl<'a> Channel<'a> {
-    pub(crate) async fn execute<P>(&mut self, protocol: &mut P) -> Result<(), Error>
-    where
-        P: Protocol,
-    {
-        trace!("Executing protocol {}.", self.idx);
-        loop {
-            let agency = protocol.agency();
-            if agency == Agency::None {
-                break;
-            }
-            let role = protocol.role();
-            if agency == role {
-                self.send(&protocol.send_bytes().unwrap()).await?;
-            } else {
-                let mut bytes = std::mem::replace(&mut self.bytes, Vec::new());
-                let new_data = self.recv().await?;
-                bytes.extend(new_data);
-                self.bytes = protocol
-                    .receive_bytes(bytes)
-                    .unwrap_or(Box::new([]))
-                    .into_vec();
-                if !self.bytes.is_empty() {
-                    trace!("Keeping {} bytes for the next frame.", self.bytes.len());
-                }
-            }
-        }
-        Ok(())
+    pub(crate) fn get_index(&self) -> u16 {
+        self.idx
     }
 
-    async fn send(&mut self, data: &[u8]) -> Result<(), Error> {
+    pub(crate) async fn send(&mut self, data: &[u8]) -> Result<(), Error> {
         Ok(self.connection.send(self.idx, &data).await)
     }
 
-    async fn recv(&mut self) -> Result<Vec<u8>, Error> {
+    pub(crate) async fn recv(&mut self) -> Result<Vec<u8>, Error> {
         Ok(self.connection.recv(&mut self.receiver).await)
     }
 }

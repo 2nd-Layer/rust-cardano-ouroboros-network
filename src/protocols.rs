@@ -16,8 +16,43 @@ pub mod chainsync;
 pub mod handshake;
 pub mod txsubmission;
 
-use crate::Error;
+use crate::{
+    Protocol,
+    Agency,
+    Error,
+    mux::Channel,
+};
+use log::trace;
 use serde_cbor::Value;
+
+pub async fn execute<P>(channel: &mut Channel<'_>, protocol: &mut P) -> Result<(), Error>
+where
+    P: Protocol,
+{
+    trace!("Executing protocol {}.", channel.get_index());
+    loop {
+        let agency = protocol.agency();
+        if agency == Agency::None {
+            break;
+        }
+        let role = protocol.role();
+        if agency == role {
+            channel.send(&protocol.send_bytes().unwrap()).await?;
+        } else {
+            let mut bytes = std::mem::replace(&mut channel.bytes, Vec::new());
+            let new_data = channel.recv().await?;
+            bytes.extend(new_data);
+            channel.bytes = protocol
+                .receive_bytes(bytes)
+                .unwrap_or(Box::new([]))
+                .into_vec();
+            if !channel.bytes.is_empty() {
+                trace!("Keeping {} bytes for the next frame.", channel.bytes.len());
+            }
+        }
+    }
+    Ok(())
+}
 
 #[derive(Debug)]
 pub(crate) struct Values<'a>(std::slice::Iter<'a, Value>);
