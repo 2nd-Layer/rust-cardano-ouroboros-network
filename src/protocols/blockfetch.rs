@@ -8,7 +8,6 @@
 //
 
 use crate::mux::Channel;
-#[cfg(not(test))]
 use crate::mux::Connection;
 use crate::Message as MessageOps;
 use crate::{
@@ -76,9 +75,23 @@ impl MessageOps for Message {
                 Value::Integer(0),
                 vec![Value::Integer(first.0.into()), first.1.clone().into()].into(),
                 vec![Value::Integer(last.0.into()), last.1.clone().into()].into(),
-            ]
-            .into(),
-            _ => panic!(),
+            ],
+            Message::ClientDone => vec![
+                Value::Integer(1),
+            ],
+            Message::StartBatch => vec![
+                Value::Integer(2),
+            ],
+            Message::NoBlocks => vec![
+                Value::Integer(3),
+            ],
+            Message::Block(block)=> vec![
+                Value::Integer(4),
+                Value::Bytes(block.clone()),
+            ],
+            Message::BatchDone => vec![
+                Value::Integer(5),
+            ],
         }
     }
 
@@ -107,13 +120,10 @@ impl Builder {
     }
     pub fn build<'a>(
         &mut self,
-        #[cfg(not(test))] connection: &'a mut Connection,
+        connection: &'a mut Connection,
     ) -> Result<BlockFetch<'a>, Error> {
         Ok(BlockFetch {
-            #[cfg(not(test))]
             channel: Some(connection.channel(0x0003)),
-            #[cfg(test)]
-            channel: None,
             config: Config {
                 first: self.first.as_ref().ok_or("First point required.")?.clone(),
                 last: self.last.as_ref().ok_or("Last point required.")?.clone(),
@@ -149,8 +159,19 @@ impl<'a> BlockFetch<'a> {
     where
         'a: 'b,
     {
-        // Start the protocol and prefetch first block into `self.result`.
-        //self.running = true;
+        self.running = true;
+        self.execute().await?;
+        Ok(BlockStream { blockfetch: self })
+    }
+
+    pub async fn done(mut self) -> Result<(), Error> {
+        self.running = true;
+        self.done = true;
+        self.execute().await?;
+        Ok(())
+    }
+
+    async fn execute(&mut self) -> Result<(), Error> {
         // TODO: Do something with the Option trick.
         let mut channel = self
             .channel
@@ -158,7 +179,7 @@ impl<'a> BlockFetch<'a> {
             .ok_or("Channel not available.".to_string())?;
         execute(&mut channel, self).await?;
         self.channel = Some(channel);
-        Ok(BlockStream { blockfetch: self })
+        Ok(())
     }
 }
 
@@ -172,7 +193,7 @@ impl BlockStream<'_, '_> {
             match self.blockfetch.state() {
                 State::Streaming => {
                     self.blockfetch.running = true;
-                    //self.blockfetch.channel.execute(self.blockfetch).await?
+                    self.blockfetch.execute().await?;
                 }
                 State::Idle => return Ok(None),
                 _ => panic!("Unexpected state."),
@@ -240,7 +261,10 @@ impl Protocol for BlockFetch<'_> {
     fn recv(&mut self, message: Message) -> Result<(), Error> {
         // `self.running` may be false in case of pipelining.
         Ok(self.state = match (self.state, message) {
-            (State::Busy, Message::NoBlocks) => State::Idle,
+            (State::Busy, Message::NoBlocks) => {
+                self.running = false;
+                State::Idle
+            }
             (State::Busy, Message::StartBatch) => State::Streaming,
             (State::Streaming, Message::Block(bytes)) => {
                 self.running = false;
@@ -259,6 +283,7 @@ impl Protocol for BlockFetch<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mux::Connection;
 
     static MOCK_DATA: &'static [(u64, &[u8], &[u8])] = &[
         (42, b"mock-hash-1", b"mock-block-1"),
@@ -266,103 +291,74 @@ mod tests {
         (44, b"mock-hash-3", b"mock-block-3"),
     ];
 
-    #[test]
-    fn client_accepts_blocks() {
-        let &(first_slot, first_hash, _) = MOCK_DATA.first().unwrap();
-        let &(last_slot, last_hash, _) = MOCK_DATA.last().unwrap();
-        let mut client = BlockFetch::builder()
-            .first(first_slot, first_hash.to_vec())
-            .last(last_slot, last_hash.to_vec())
-            .build()
-            .unwrap();
-        assert_eq!(client.state, State::Idle);
-        // Start the exchange.
-        client.running = true;
-        let message = client.send().unwrap();
-        assert!(client.running);
-        assert_eq!(
-            message,
-            Message::RequestRange(
-                (first_slot, first_hash.to_vec()),
-                (last_slot, last_hash.to_vec()),
-            ),
-        );
-        assert_eq!(client.state, State::Busy);
-        assert!(client.result.is_empty());
-        client.recv(Message::StartBatch).unwrap();
-        assert!(client.running);
-        assert_eq!(client.state, State::Streaming);
-        assert!(client.result.is_empty());
-        // Accept blocks one by one.
-        for (_, _, block) in MOCK_DATA {
-            client.recv(Message::Block(block.to_vec())).unwrap();
-            assert!(!client.running);
-            assert_eq!(client.state, State::Streaming);
-            assert_eq!(client.result.remove(0), Box::from(*block));
-            assert!(client.result.is_empty());
-            client.running = true;
-        }
-        // Accept blocks as bulk.
-        for (_, _, block) in MOCK_DATA {
-            client.recv(Message::Block(block.to_vec())).unwrap();
-            assert!(!client.running);
-            assert_eq!(client.state, State::Streaming);
-            client.running = true;
-        }
-        for (_, _, block) in MOCK_DATA {
-            assert_eq!(client.result.remove(0), Box::from(*block));
-        }
-        assert!(client.result.is_empty());
-        // Stop streaming.
-        client.recv(Message::BatchDone).unwrap();
-        assert!(!client.running);
-        assert_eq!(client.state, State::Idle);
-        assert!(client.result.is_empty());
-        // Close the channel.
-        client.running = true;
-        client.done = true;
-        let message = client.send().unwrap();
-        assert!(client.running);
-        assert_eq!(message, Message::ClientDone);
-        assert_eq!(client.state, State::Done);
-        assert!(client.result.is_empty());
-    }
+    #[tokio::test]
+    async fn client_works() {
+        env_logger::builder().is_test(true).try_init().ok();
+        let (mut connection, mut endpoint) = Connection::test_unix_pair().unwrap();
+        let mut channel = endpoint.channel(0x8003);
 
-    #[test]
-    fn client_accepts_no_blocks() {
         let &(first_slot, first_hash, _) = MOCK_DATA.first().unwrap();
         let &(last_slot, last_hash, _) = MOCK_DATA.last().unwrap();
         let mut client = BlockFetch::builder()
             .first(first_slot, first_hash.to_vec())
             .last(last_slot, last_hash.to_vec())
-            .build()
+            .build(&mut connection)
             .unwrap();
         assert_eq!(client.state, State::Idle);
-        // Start the exchange.
-        client.running = true;
-        let message = client.send().unwrap();
-        assert!(client.running);
-        assert_eq!(
-            message,
-            Message::RequestRange(
-                (first_slot, first_hash.to_vec()),
-                (last_slot, last_hash.to_vec()),
-            ),
+        // Client collects a range of blocks.
+        tokio::join!(
+            async {
+                let mut blocks = client.run().await.unwrap();
+                for (_, _, block) in MOCK_DATA {
+                    assert_eq!(
+                        blocks.next().await,
+                        Ok(Some(Box::from(*block))),
+                    );
+                }
+                assert_eq!(
+                    blocks.next().await,
+                    Ok(None),
+                );
+            },
+            async {
+                channel.expect(&Message::RequestRange(
+                    (first_slot, first_hash.to_vec()),
+                    (last_slot, last_hash.to_vec()),
+                ).to_bytes()).await;
+                channel.send(&Message::StartBatch.to_bytes()).await.unwrap();
+                for (_, _, block) in MOCK_DATA {
+                    channel.send(&Message::Block(block.to_vec()).to_bytes()).await.unwrap();
+                }
+                channel.send(&Message::BatchDone.to_bytes()).await.unwrap();
+            },
         );
-        assert_eq!(client.state, State::Busy);
-        assert!(client.result.is_empty());
-        client.recv(Message::NoBlocks).unwrap();
-        assert!(client.running);
         assert_eq!(client.state, State::Idle);
-        assert!(client.result.is_empty());
-        assert!(client.result.is_empty());
-        // Close the channel.
-        client.running = true;
-        client.done = true;
-        let message = client.send().unwrap();
-        assert!(client.running);
-        assert_eq!(message, Message::ClientDone);
-        assert_eq!(client.state, State::Done);
-        assert!(client.result.is_empty());
+        // Client understands negative answer.
+        tokio::join!(
+            async {
+                let mut blocks = client.run().await.unwrap();
+                assert_eq!(
+                    blocks.next().await,
+                    Ok(None),
+                );
+            },
+            async {
+                channel.expect(&Message::RequestRange(
+                    (first_slot, first_hash.to_vec()),
+                    (last_slot, last_hash.to_vec()),
+                ).to_bytes()).await;
+                channel.send(&Message::NoBlocks.to_bytes()).await.unwrap();
+            },
+        );
+        assert_eq!(client.state, State::Idle);
+        // Client closes the channel.
+        tokio::join!(
+            async {
+                client.done().await.unwrap();
+            },
+            async {
+                channel.expect(&Message::ClientDone.to_bytes()).await;
+            },
+        );
     }
 }

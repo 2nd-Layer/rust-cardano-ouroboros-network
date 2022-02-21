@@ -119,6 +119,13 @@ impl Connection {
         self.start_time.elapsed()
     }
 
+    #[cfg(test)]
+    #[cfg(target_family = "unix")]
+    pub fn test_unix_pair() -> Result<(Connection, Connection), io::Error> {
+        let (left, right) = UnixStream::pair()?;
+        Ok((Connection::from_unix_stream(left), Connection::from_unix_stream(right)))
+    }
+
     pub fn channel<'a>(&'a mut self, idx: u16) -> Channel<'a> {
         let receiver = self.register(idx);
         let demux = self.run_demux();
@@ -203,6 +210,14 @@ impl<'a> Channel<'a> {
 
     pub(crate) async fn recv(&mut self) -> Result<Vec<u8>, Error> {
         Ok(self.connection.recv(&mut self.receiver).await)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn expect(&mut self, data: &[u8]) {
+        assert_eq!(
+            self.recv().await.unwrap(),
+            data,
+        );
     }
 }
 
