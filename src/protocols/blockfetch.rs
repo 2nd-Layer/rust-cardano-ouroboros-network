@@ -259,11 +259,19 @@ impl Protocol for BlockFetch<'_> {
 mod tests {
     use super::*;
 
+    static MOCK_DATA: &'static [(u64, &[u8], &[u8])] = &[
+        (42, b"mock-hash-1", b"mock-block-1"),
+        (43, b"mock-hash-2", b"mock-block-2"),
+        (44, b"mock-hash-3", b"mock-block-3"),
+    ];
+
     #[test]
     fn client_accepts_blocks() {
+        let &(first_slot, first_hash, _) = MOCK_DATA.first().unwrap();
+        let &(last_slot, last_hash, _) = MOCK_DATA.last().unwrap();
         let mut client = BlockFetch::builder()
-            .first(42, b"fake-hash-1".to_vec())
-            .last(43, b"fake-hash-2".to_vec())
+            .first(first_slot, first_hash.to_vec())
+            .last(last_slot, last_hash.to_vec())
             .build()
             .unwrap();
         assert_eq!(client.state, State::Idle);
@@ -273,7 +281,10 @@ mod tests {
         assert!(client.running);
         assert_eq!(
             message,
-            Message::RequestRange((42, b"fake-hash-1".to_vec()), (43, b"fake-hash-2".to_vec()),)
+            Message::RequestRange(
+                (first_slot, first_hash.to_vec()),
+                (last_slot, last_hash.to_vec()),
+            ),
         );
         assert_eq!(client.state, State::Busy);
         assert!(client.result.is_empty());
@@ -282,23 +293,23 @@ mod tests {
         assert_eq!(client.state, State::Streaming);
         assert!(client.result.is_empty());
         // Accept blocks one by one.
-        for block in [b"fake-block-1", b"fake-block-2", b"fake-block-3"] {
+        for (_, _, block) in MOCK_DATA {
             client.recv(Message::Block(block.to_vec())).unwrap();
             assert!(!client.running);
             assert_eq!(client.state, State::Streaming);
-            assert_eq!(client.result.remove(0), Box::from(block.as_slice()));
+            assert_eq!(client.result.remove(0), Box::from(*block));
             assert!(client.result.is_empty());
             client.running = true;
         }
         // Accept blocks as bulk.
-        for block in [b"fake-block-1", b"fake-block-2", b"fake-block-3"] {
+        for (_, _, block) in MOCK_DATA {
             client.recv(Message::Block(block.to_vec())).unwrap();
             assert!(!client.running);
             assert_eq!(client.state, State::Streaming);
             client.running = true;
         }
-        for block in [b"fake-block-1", b"fake-block-2", b"fake-block-3"] {
-            assert_eq!(client.result.remove(0), Box::from(block.as_slice()));
+        for (_, _, block) in MOCK_DATA {
+            assert_eq!(client.result.remove(0), Box::from(*block));
         }
         assert!(client.result.is_empty());
         // Stop streaming.
@@ -318,9 +329,11 @@ mod tests {
 
     #[test]
     fn client_accepts_no_blocks() {
+        let &(first_slot, first_hash, _) = MOCK_DATA.first().unwrap();
+        let &(last_slot, last_hash, _) = MOCK_DATA.last().unwrap();
         let mut client = BlockFetch::builder()
-            .first(42, b"fake-hash-1".to_vec())
-            .last(43, b"fake-hash-2".to_vec())
+            .first(first_slot, first_hash.to_vec())
+            .last(last_slot, last_hash.to_vec())
             .build()
             .unwrap();
         assert_eq!(client.state, State::Idle);
@@ -330,7 +343,10 @@ mod tests {
         assert!(client.running);
         assert_eq!(
             message,
-            Message::RequestRange((42, b"fake-hash-1".to_vec()), (43, b"fake-hash-2".to_vec()),)
+            Message::RequestRange(
+                (first_slot, first_hash.to_vec()),
+                (last_slot, last_hash.to_vec()),
+            ),
         );
         assert_eq!(client.state, State::Busy);
         assert!(client.result.is_empty());
