@@ -32,11 +32,14 @@ type Error = String;
 pub trait Message: std::fmt::Debug + Sized {
     fn from_values(array: Vec<Value>) -> Result<Self, Error>;
     fn to_values(&self) -> Vec<Value>;
-    fn info(&self) -> String;
 
     fn to_bytes(&self) -> Vec<u8> {
         let values = self.to_values();
         to_vec(&values).unwrap()
+    }
+
+    fn info(&self) -> String {
+        format!("{:?}", self)
     }
 }
 

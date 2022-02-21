@@ -129,10 +129,6 @@ impl MessageOps for Message {
             ],
         }
     }
-
-    fn info(&self) -> String {
-        format!("{:?}", self)
-    }
 }
 
 pub struct HandshakeBuilder {
