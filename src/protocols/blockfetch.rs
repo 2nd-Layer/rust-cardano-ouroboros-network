@@ -14,11 +14,11 @@ use crate::{
     Agency,
     Error,
     Protocol,
+    model::Point,
     protocols::execute,
+    protocols::Values,
 };
 use serde_cbor::Value;
-
-type Point = (u64, Vec<u8>);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum State {
@@ -39,42 +39,32 @@ pub enum Message {
 }
 
 impl MessageOps for Message {
-    fn from_values(array: Vec<Value>) -> Result<Self, Error> {
-        let mut values = array.iter();
-        //debug!("Parsing message: {:?}", values);
-        let message = match values
-            .next()
-            .ok_or("Unexpected end of message.".to_string())?
-        {
-            //Value::Integer(0) => Message::RequestRange(),
-            Value::Integer(1) => Message::ClientDone,
-            Value::Integer(2) => Message::StartBatch,
-            Value::Integer(3) => Message::NoBlocks,
-            Value::Integer(4) => {
-                match values
-                    .next()
-                    .ok_or("Unexpected End of message.".to_string())?
-                {
-                    Value::Bytes(bytes) => Message::Block(bytes.to_vec()),
-                    _ => panic!("Extra data: {:?}", values.collect::<Vec<_>>()),
-                }
-            }
-            Value::Integer(5) => Message::BatchDone,
+    fn from_values(values: Vec<Value>) -> Result<Self, Error> {
+        let mut array = Values::from_values(&values);
+        let message = match array.integer()? {
+            0 => Message::RequestRange(
+                array.array()?.try_into()?,
+                array.array()?.try_into()?,
+            ),
+            1 => Message::ClientDone,
+            2 => Message::StartBatch,
+            3 => Message::NoBlocks,
+            4 => Message::Block(
+                array.bytes()?.to_vec(),
+            ),
+            5 => Message::BatchDone,
             _ => panic!(),
         };
-        match values.next() {
-            Some(Value::Null) => Ok(message),
-            Some(data) => Err(format!("data={:?}", data)),
-            None => Ok(message),
-        }
+        array.end()?;
+        Ok(message)
     }
 
     fn to_values(&self) -> Vec<Value> {
         match self {
             Message::RequestRange(first, last) => vec![
                 Value::Integer(0),
-                vec![Value::Integer(first.0.into()), first.1.clone().into()].into(),
-                vec![Value::Integer(last.0.into()), last.1.clone().into()].into(),
+                vec![Value::Integer(first.slot.into()), first.hash.clone().into()].into(),
+                vec![Value::Integer(last.slot.into()), last.hash.clone().into()].into(),
             ],
             Message::ClientDone => vec![
                 Value::Integer(1),
@@ -111,11 +101,11 @@ pub struct Builder {
 
 impl Builder {
     pub fn first(&mut self, slot: u64, hash: Vec<u8>) -> &mut Self {
-        self.first = Some((slot, hash));
+        self.first = Some((slot, hash.as_slice()).into());
         self
     }
     pub fn last(&mut self, slot: u64, hash: Vec<u8>) -> &mut Self {
-        self.last = Some((slot, hash));
+        self.last = Some((slot, hash.as_slice()).into());
         self
     }
     pub fn build<'a>(
@@ -291,6 +281,31 @@ mod tests {
         (44, b"mock-hash-3", b"mock-block-3"),
     ];
 
+    #[test]
+    fn message_cbor_works() {
+        let &(first_slot, first_hash, first_block) = MOCK_DATA.first().unwrap();
+        let &(last_slot, last_hash, _) = MOCK_DATA.last().unwrap();
+        let messages = [
+            Message::RequestRange(
+                (first_slot, first_hash).into(),
+                (last_slot, last_hash).into(),
+            ),
+            Message::ClientDone,
+            Message::StartBatch,
+            Message::NoBlocks,
+            Message::Block(
+                first_block.to_vec(),
+            ),
+            Message::BatchDone,
+        ];
+        for message in messages {
+            assert_eq!(
+                Message::from_values(message.to_values()),
+                Ok(message),
+            );
+        }
+    }
+
     #[tokio::test]
     async fn client_works() {
         env_logger::builder().is_test(true).try_init().ok();
@@ -322,8 +337,8 @@ mod tests {
             },
             async {
                 channel.expect(&Message::RequestRange(
-                    (first_slot, first_hash.to_vec()),
-                    (last_slot, last_hash.to_vec()),
+                    (first_slot, first_hash).into(),
+                    (last_slot, last_hash).into(),
                 ).to_bytes()).await;
                 channel.send(&Message::StartBatch.to_bytes()).await.unwrap();
                 for (_, _, block) in MOCK_DATA {
@@ -344,8 +359,8 @@ mod tests {
             },
             async {
                 channel.expect(&Message::RequestRange(
-                    (first_slot, first_hash.to_vec()),
-                    (last_slot, last_hash.to_vec()),
+                    (first_slot, first_hash).into(),
+                    (last_slot, last_hash).into(),
                 ).to_bytes()).await;
                 channel.send(&Message::NoBlocks.to_bytes()).await.unwrap();
             },

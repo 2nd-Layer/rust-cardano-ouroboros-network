@@ -21,6 +21,7 @@ use crate::{
     Agency,
     Error,
     mux::Channel,
+    model::Point,
 };
 use log::trace;
 use serde_cbor::Value;
@@ -88,5 +89,16 @@ impl<'a> Values<'a> {
             None => Ok(()),
             other => Err(format!("End of array required, found {:?}", other)),
         }
+    }
+}
+
+impl TryInto<Point> for Values<'_> {
+    type Error = Error;
+
+    fn try_into(mut self) -> Result<Point, Error> {
+        let slot = self.integer()? as u64;
+        let hash = self.bytes()?.clone();
+        self.end()?;
+        Ok(Point { slot, hash })
     }
 }

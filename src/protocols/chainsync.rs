@@ -379,7 +379,7 @@ fn parse_wrapped_header(mut array: Values) -> Result<BlockHeader, Error> {
 
 fn parse_tip(mut array: Values) -> Result<Tip, Error> {
     let mut tip_info_array = array.array()?;
-    let slot_number = tip_info_array.integer()? as i64;
+    let slot_number = tip_info_array.integer()? as u64;
     let hash = tip_info_array.bytes()?.clone();
     tip_info_array.end()?;
     let block_number = array.integer()? as i64;
@@ -392,7 +392,7 @@ fn parse_tip(mut array: Values) -> Result<Tip, Error> {
 }
 
 fn parse_point(mut array: Values) -> Result<Point, Error> {
-    let slot = array.integer()? as i64;
+    let slot = array.integer()? as u64;
     let hash = array.bytes()?.clone();
     array.end()?;
     Ok(Point { slot, hash })
