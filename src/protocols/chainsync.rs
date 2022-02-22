@@ -11,7 +11,7 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 
-use crate::Message as MessageOps;
+use crate::protocols::Message as MessageOps;
 use crate::{
     model::Point,
     model::Tip,
@@ -19,9 +19,9 @@ use crate::{
     mux::Channel,
     mux::Connection,
     protocols::Values,
-    Agency,
     Error,
-    Protocol,
+    protocols::Agency,
+    protocols::Protocol,
     protocols::execute,
 };
 use serde_cbor::Value;

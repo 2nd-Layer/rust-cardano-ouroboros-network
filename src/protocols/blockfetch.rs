@@ -9,11 +9,11 @@
 
 use crate::mux::Channel;
 use crate::mux::Connection;
-use crate::Message as MessageOps;
+use crate::protocols::Message as MessageOps;
 use crate::{
-    Agency,
     Error,
-    Protocol,
+    protocols::Agency,
+    protocols::Protocol,
     model::Point,
     protocols::execute,
     protocols::Values,

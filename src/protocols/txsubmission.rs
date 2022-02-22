@@ -11,11 +11,11 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 
-use crate::Message as MessageOps;
+use crate::protocols::Message as MessageOps;
 use crate::{
-    Agency,
     Error,
-    Protocol,
+    protocols::Agency,
+    protocols::Protocol,
 };
 use byteorder::WriteBytesExt;
 use log::{

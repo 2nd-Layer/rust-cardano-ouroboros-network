@@ -17,27 +17,97 @@ pub mod handshake;
 pub mod txsubmission;
 
 use crate::{
-    Protocol,
-    Agency,
     Error,
     mux::Channel,
     model::{Point, Tip, BlockHeader},
 };
-use log::trace;
-use serde_cbor::{Value, de};
+use serde_cbor::{
+    de,
+    de::Deserializer,
+    to_vec,
+    Value,
+};
+use log::{trace, debug};
 use blake2b_simd::Params;
+
+pub trait Protocol {
+    type State: std::fmt::Debug;
+    type Message: Message;
+
+    //
+    // Static information
+    //
+    fn protocol_id(&self) -> u16;
+
+    //
+    // Runtime information
+    //
+    fn role(&self) -> Agency;
+    fn state(&self) -> Self::State;
+    fn agency(&self) -> Agency;
+
+    //
+    // Communication
+    //
+    fn send(&mut self) -> Result<Self::Message, Error>;
+    fn recv(&mut self, message: Self::Message) -> Result<(), Error>;
+
+    //
+    // Binary data
+    //
+
+    fn send_bytes(&mut self) -> Option<Vec<u8>> {
+        debug_assert_eq!(self.agency(), self.role());
+        // TODO: Protocol should really return an error.
+        let message = self.send().unwrap();
+        let info = message.info();
+        debug!("Tx: message {}", info);
+        let bytes = message.to_bytes();
+        debug!("State: {:?}", self.state());
+        Some(bytes)
+    }
+
+    fn receive_bytes(&mut self, data: Vec<u8>) -> Option<Box<[u8]>> {
+        debug_assert!(self.agency() != Agency::None);
+        debug_assert!(self.agency() != self.role());
+        //debug!("Received data length={}", data.len());
+        debug!("receive_bytes {:?}", data.chunks(32).next());
+        let mut d = Deserializer::from_slice(&data).into_iter::<Vec<Value>>();
+        debug!("----");
+        let mut last_offset = 0;
+        while let Some(chunk) = d.next() {
+            match chunk {
+                Ok(values) => {
+                    let message = Self::Message::from_values(values).unwrap();
+                    let info = message.info();
+                    self.recv(message).unwrap();
+                    debug!("Rx: message {}", info);
+                    debug!("State: {:?}", self.state());
+                    debug!("Demux offset: {}", d.byte_offset());
+                    last_offset = d.byte_offset();
+                }
+                Err(e) => match e.is_eof() {
+                    true => {
+                        return Some(Box::from(&data[last_offset..]));
+                    }
+                    false => panic!("Error: {:?}", e),
+                },
+            }
+        }
+        assert_eq!(d.byte_offset(), data.len());
+        None
+    }
+}
 
 pub async fn execute<P>(channel: &mut Channel<'_>, protocol: &mut P) -> Result<(), Error>
 where
     P: Protocol,
 {
     trace!("Executing protocol {}.", channel.get_index());
-    loop {
+    while protocol.agency() != Agency::None {
         let agency = protocol.agency();
-        if agency == Agency::None {
-            break;
-        }
         let role = protocol.role();
+        assert!(agency != Agency::None);
         if agency == role {
             channel.send(&protocol.send_bytes().unwrap()).await?;
         } else {
@@ -54,6 +124,30 @@ where
         }
     }
     Ok(())
+}
+
+pub trait Message: std::fmt::Debug + Sized {
+    fn from_values(array: Vec<Value>) -> Result<Self, Error>;
+    fn to_values(&self) -> Vec<Value>;
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let values = self.to_values();
+        to_vec(&values).unwrap()
+    }
+
+    fn info(&self) -> String {
+        format!("{:?}", self)
+    }
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum Agency {
+    // Client continues
+    Client,
+    // Server continues
+    Server,
+    // End of exchange
+    None,
 }
 
 #[derive(Debug)]
