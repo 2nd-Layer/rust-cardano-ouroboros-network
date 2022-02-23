@@ -38,7 +38,7 @@ pub enum State {
 
 #[derive(Debug, PartialEq)]
 pub enum Message {
-    ProposeVersions(Vec<Version>, u32),
+    ProposeVersions(Vec<(Version, u32)>),
     AcceptVersion(Version, u32),
     Refuse,
 }
@@ -47,23 +47,11 @@ impl MessageOps for Message {
     fn from_iter(mut array: Values) -> Result<Self, Error> {
         match array.integer()? {
             0 => {
-                let items: Vec<(_, _)> = array.map()?
+                let versions: Vec<(_, _)> = array.map()?
                     .iter()
                     .map(|(key, value)| Version::from_values(key.clone(), value.clone()))
                     .collect::<Result<Vec<_>, _>>()?;
-                let magic = *match items.first().map(|(_, value)| value) {
-                    Some(magic) => {
-                        items
-                            .iter()
-                            .all(|(_, value)| value == magic)
-                            .then(|| ())
-                            .ok_or("Different magics not supported.")?;
-                        magic
-                    }
-                    None => return Err("At least one version required.".to_string()),
-                };
-                let versions = items.into_iter().map(|(key, _)| key).collect();
-                Ok(Message::ProposeVersions(versions, magic))
+                Ok(Message::ProposeVersions(versions))
             },
             1 => {
                 let version = Version::from_u16(array.integer()? as u16);
@@ -85,12 +73,12 @@ impl MessageOps for Message {
 
     fn to_values(&self) -> Vec<Value> {
         match self {
-            Message::ProposeVersions(versions, magic) => vec![
+            Message::ProposeVersions(versions) => vec![
                 Integer(0),
                 Value::Map(
                     versions
                         .iter()
-                        .map(|v| v.to_values(*magic).unwrap())
+                        .map(|(v, m)| v.to_values(*m).unwrap())
                         .collect(),
                 ),
             ],
@@ -319,8 +307,7 @@ impl<'a> Protocol<'a> for Handshake<'a> {
             State::Propose => {
                 self.state = State::Confirm;
                 Ok(Message::ProposeVersions(
-                    self.versions.clone(),
-                    self.network_magic,
+                    self.versions.iter().map(|v| (v.clone(), self.network_magic)).collect(),
                 ))
             }
             State::Confirm => {
@@ -405,12 +392,10 @@ mod tests {
     fn message_cbor_works() {
         let messages = [
             Message::ProposeVersions(
-                (1..7).map(|n| Version::N2N(n)).collect(),
-                0x12345678,
+                (1..7).map(|n| (Version::N2N(n), 0x12345678)).collect(),
             ),
             Message::ProposeVersions(
-                (1..9).map(|n| Version::C2N(n)).collect(),
-                0x12345678,
+                (1..9).map(|n| (Version::C2N(n), 0x12345678)).collect(),
             ),
             Message::AcceptVersion(
                 Version::N2N(7),
