@@ -17,6 +17,7 @@ use crate::{
     mux::{Connection, Channel},
     protocols::Agency,
     protocols::Protocol,
+    protocols::Values,
 };
 use log::{
     debug,
@@ -43,59 +44,39 @@ pub enum Message {
 }
 
 impl MessageOps for Message {
-    fn from_values(values: Vec<Value>) -> Result<Self, Error> {
-        let mut values = values.into_iter();
-        match values.next().ok_or("Message ID required.")? {
-            Value::Integer(0) => match values.next() {
-                Some(Value::Map(map)) => {
-                    let items: Vec<(_, _)> = map
-                        .iter()
-                        .map(|(key, value)| Version::from_values(key.clone(), value.clone()))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let magic = *match items.first().map(|(_, value)| value) {
-                        Some(magic) => {
-                            items
-                                .iter()
-                                .all(|(_, value)| value == magic)
-                                .then(|| ())
-                                .ok_or("Different magics not supported.")?;
-                            magic
-                        }
-                        None => return Err("At least one version required.".to_string()),
-                    };
-                    let versions = items.into_iter().map(|(key, _)| key).collect();
-                    Ok(Message::ProposeVersions(versions, magic))
-                }
-                _ => Err("Map of supported versions required.".to_string()),
+    fn from_iter(mut array: Values) -> Result<Self, Error> {
+        match array.integer()? {
+            0 => {
+                let items: Vec<(_, _)> = array.map()?
+                    .iter()
+                    .map(|(key, value)| Version::from_values(key.clone(), value.clone()))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let magic = *match items.first().map(|(_, value)| value) {
+                    Some(magic) => {
+                        items
+                            .iter()
+                            .all(|(_, value)| value == magic)
+                            .then(|| ())
+                            .ok_or("Different magics not supported.")?;
+                        magic
+                    }
+                    None => return Err("At least one version required.".to_string()),
+                };
+                let versions = items.into_iter().map(|(key, _)| key).collect();
+                Ok(Message::ProposeVersions(versions, magic))
             },
-            Value::Integer(1) => {
-                let version = match values.next() {
-                    Some(Value::Integer(version)) => {
-                        Version::from_u16(u16::try_from(version).map_err(|e| e.to_string())?)
-                    }
-                    _ => return Err("Integer version number required.".to_string()),
-                };
-                match values.next() {
-                    Some(Value::Array(array)) => {
-                        let mut items = array.iter();
-                        let magic = match items.next() {
-                            Some(Value::Integer(magic)) => {
-                                u32::try_from(*magic).map_err(|e| e.to_string())?
-                            }
-                            _ => return Err("Integer version number required.".to_string()),
-                        };
-                        Ok(Message::AcceptVersion(version, magic))
-                    }
-                    _ => return Err("Array of extra parameters required.".to_string()),
-                }
-            }
-            Value::Integer(2) => {
-                match values.next() {
-                    Some(Value::Array(reason)) => {
-                        error!("Handshake refused with reason: {:?}", reason);
-                    }
-                    _ => return Err("Refuse reason required.".to_string()),
-                };
+            1 => {
+                let version = Version::from_u16(array.integer()? as u16);
+                let mut items = array.array()?;
+                let magic = items.integer()? as u32;
+                let _false = items.bool()?;
+                // TODO: Handle this value.
+                assert_eq!(_false, false);
+                Ok(Message::AcceptVersion(version, magic))
+            },
+            2 => {
+                let reason = array.array()?;
+                error!("Handshake refused with reason: {:?}", reason);
                 Ok(Message::Refuse)
             }
             _ => return Err("Unexpected.".to_string()),
@@ -438,7 +419,7 @@ mod tests {
         ];
         for message in messages {
             assert_eq!(
-                Message::from_values(message.to_values()),
+                Message::from_iter(Values::from_vec(&message.to_values())),
                 Ok(message),
             );
         }

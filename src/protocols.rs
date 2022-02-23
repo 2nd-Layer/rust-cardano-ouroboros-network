@@ -30,6 +30,7 @@ use serde_cbor::{
 use log::{trace, debug};
 use blake2b_simd::Params;
 use async_trait::async_trait;
+use std::collections::BTreeMap;
 
 #[async_trait]
 pub(crate) trait Protocol<'a> {
@@ -172,10 +173,25 @@ impl<'a> Values<'a> {
         }
     }
 
+    pub(crate) fn map(&mut self) -> Result<&BTreeMap<Value, Value>, Error> {
+        match self.0.next() {
+            Some(Value::Map(map)) => Ok(map),
+            other => Err(format!("Integer required: {:?}", other)),
+        }
+    }
+
+
     pub(crate) fn integer(&mut self) -> Result<i128, Error> {
         match self.0.next() {
             Some(&Value::Integer(value)) => Ok(value),
             other => Err(format!("Integer required, found {:?}", other)),
+        }
+    }
+
+    pub(crate) fn bool(&mut self) -> Result<bool, Error> {
+        match self.0.next() {
+            Some(&Value::Bool(value)) => Ok(value),
+            other => Err(format!("Boolean required, found {:?}", other)),
         }
     }
 
