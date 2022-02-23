@@ -202,6 +202,13 @@ impl Version {
     }
 }
 
+pub fn builder() -> HandshakeBuilder {
+    HandshakeBuilder {
+        versions: vec![Version::N2N(6), Version::N2N(7)],
+        magic: 0,
+    }
+}
+
 impl HandshakeBuilder {
     pub fn network_magic(&mut self, magic: u32) -> &mut Self {
         self.magic = magic;
@@ -252,13 +259,6 @@ pub struct Handshake<'a> {
 }
 
 impl Handshake<'_> {
-    pub fn builder() -> HandshakeBuilder {
-        HandshakeBuilder {
-            versions: vec![Version::N2N(6), Version::N2N(7)],
-            magic: 0,
-        }
-    }
-
     pub async fn negotiate(&mut self) -> Result<(Version, u32), Error> {
         self.execute().await?;
         self.version
@@ -416,7 +416,7 @@ mod tests {
         tokio::join!(
             async {
                 debug!("................");
-                let mut client = Handshake::builder()
+                let mut client = builder()
                     .node_to_node()
                     .network_magic(magic)
                     .client(&mut connection)
@@ -443,7 +443,7 @@ mod tests {
         let magic = 0xdddddddd;
         tokio::join!(
             async {
-                let mut server = Handshake::builder()
+                let mut server = builder()
                     .node_to_node()
                     .network_magic(magic)
                     .server(&mut connection)

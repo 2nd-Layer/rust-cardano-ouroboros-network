@@ -9,8 +9,7 @@
 
 use cardano_ouroboros_network::{
     mux::Connection,
-    protocols::blockfetch::BlockFetch,
-    protocols::handshake::Handshake,
+    protocols::{handshake, blockfetch},
 };
 
 mod common;
@@ -22,14 +21,14 @@ async fn blockfetch() -> Result<(), Box<dyn std::error::Error>> {
         Ok(connection) => connection,
         Err(_) => return Err("Could not connect.".to_string().into()),
     };
-    Handshake::builder()
+    handshake::builder()
         .node_to_node()
         .network_magic(cfg.magic)
         .client(&mut connection)?
         .negotiate()
         .await?;
 
-    let mut blockfetch = BlockFetch::builder()
+    let mut blockfetch = blockfetch::builder()
         .first(
             26249860,
             hex::decode("915386f44ad3a7fccee949c9d3fe43f5a20459c7401f990e1cc7d52c10be1fd6")?,

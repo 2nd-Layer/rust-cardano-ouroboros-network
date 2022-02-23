@@ -91,6 +91,10 @@ impl MessageOps for Message {
     }
 }
 
+pub fn builder() -> Builder {
+    Default::default()
+}
+
 #[derive(Default)]
 pub struct Builder {
     first: Option<Point>,
@@ -139,10 +143,6 @@ pub struct BlockFetch<'a> {
 }
 
 impl<'a> BlockFetch<'a> {
-    pub fn builder() -> Builder {
-        Default::default()
-    }
-
     pub async fn run<'b>(&'b mut self) -> Result<BlockStream<'a, 'b>, Error>
     where
         'a: 'b,
@@ -308,7 +308,7 @@ mod tests {
 
         let &(first_slot, first_hash, _) = MOCK_DATA.first().unwrap();
         let &(last_slot, last_hash, _) = MOCK_DATA.last().unwrap();
-        let mut client = BlockFetch::builder()
+        let mut client = builder()
             .first(first_slot, first_hash.to_vec())
             .last(last_slot, last_hash.to_vec())
             .client(&mut connection)

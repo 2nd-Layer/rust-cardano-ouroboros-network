@@ -9,7 +9,7 @@
 
 use cardano_ouroboros_network::{
     mux::Connection,
-    protocols::handshake::Handshake,
+    protocols::handshake,
 };
 use log::info;
 use std::env;
@@ -28,7 +28,7 @@ async fn local(magic: u32) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut connection = Connection::unix_connect(socket_path).await?;
 
-    Handshake::builder()
+    handshake::builder()
         .client_to_node()
         .network_magic(magic)
         .client(&mut connection)?

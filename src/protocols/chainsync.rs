@@ -104,6 +104,10 @@ impl MessageOps for Message {
     }
 }
 
+pub fn builder() -> ChainSyncBuilder {
+    ChainSyncBuilder {}
+}
+
 pub struct ChainSyncBuilder {}
 
 impl ChainSyncBuilder {
@@ -144,10 +148,6 @@ pub struct ChainSync<'a> {
 }
 
 impl<'a> ChainSync<'a> {
-    pub fn builder() -> ChainSyncBuilder {
-        ChainSyncBuilder {}
-    }
-
     pub async fn find_intersect(&mut self, points: Vec<Point>) -> Result<Intersect, Error> {
         self.query = Some(Query::Intersect(points));
         self.execute().await?;
