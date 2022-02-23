@@ -36,11 +36,10 @@ async fn handle(stream: TcpStream, cfg: &common::Config) -> Result<(), Error> {
     let mut connection = Connection::from_tcp_stream(stream);
 
     handshake::Handshake::builder()
-        .server()
         .node_to_node()
         .network_magic(cfg.magic)
-        .build(&mut connection)?
-        .run()
+        .server(&mut connection)?
+        .negotiate()
         .await?;
 
     Ok(())

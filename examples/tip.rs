@@ -26,11 +26,10 @@ async fn tip() -> Result<(), Box<dyn std::error::Error>> {
     let mut connection = Connection::tcp_connect(&cfg.host).await?;
 
     Handshake::builder()
-        .client()
         .node_to_node()
         .network_magic(cfg.magic)
-        .build(&mut connection)?
-        .run()
+        .client(&mut connection)?
+        .negotiate()
         .await?;
 
     let mut chainsync = ChainSync::builder().build(&mut connection);

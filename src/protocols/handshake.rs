@@ -101,7 +101,6 @@ impl MessageOps for Message {
 }
 
 pub struct HandshakeBuilder {
-    role: Agency,
     versions: Vec<Version>,
     magic: u32,
 }
@@ -209,16 +208,6 @@ impl HandshakeBuilder {
         self
     }
 
-    pub fn client(&mut self) -> &mut Self {
-        self.role = Agency::Client;
-        self
-    }
-
-    pub fn server(&mut self) -> &mut Self {
-        self.role = Agency::Server;
-        self
-    }
-
     pub fn node_to_node(&mut self) -> &mut Self {
         self.versions = vec![Version::N2N(6), Version::N2N(7)];
         self
@@ -229,19 +218,27 @@ impl HandshakeBuilder {
         self
     }
 
-    pub fn build<'a>(&mut self, connection: &'a mut Connection) -> Result<Handshake<'a>, Error> {
+    fn build<'a>(&self, connection: &'a mut Connection, role: Agency) -> Result<Handshake<'a>, Error> {
         Ok(Handshake {
-            channel: connection.channel(match self.role {
+            channel: connection.channel(match role {
                 Agency::Client => 0x0000,
                 Agency::Server => 0x8000,
                 _ => panic!(),
             }),
-            role: self.role,
+            role,
             versions: self.versions.clone(),
             network_magic: self.magic,
             state: State::Propose,
             version: None,
         })
+    }
+
+    pub fn client<'a>(&self, connection: &'a mut Connection) -> Result<Handshake<'a>, Error> {
+        self.build(connection, Agency::Client)
+    }
+
+    pub fn server<'a>(&self, connection: &'a mut Connection) -> Result<Handshake<'a>, Error> {
+        self.build(connection, Agency::Server)
     }
 }
 
@@ -257,13 +254,12 @@ pub struct Handshake<'a> {
 impl Handshake<'_> {
     pub fn builder() -> HandshakeBuilder {
         HandshakeBuilder {
-            role: Agency::Client,
             versions: vec![Version::N2N(6), Version::N2N(7)],
             magic: 0,
         }
     }
 
-    pub async fn run(&mut self) -> Result<(Version, u32), Error> {
+    pub async fn negotiate(&mut self) -> Result<(Version, u32), Error> {
         self.execute().await?;
         self.version
             .as_ref()
@@ -421,13 +417,12 @@ mod tests {
             async {
                 debug!("................");
                 let mut client = Handshake::builder()
-                    .client()
                     .node_to_node()
                     .network_magic(magic)
-                    .build(&mut connection)
+                    .client(&mut connection)
                     .unwrap();
                 assert_eq!(client.state, State::Propose);
-                let result = client.run().await.unwrap();
+                let result = client.negotiate().await.unwrap();
                 assert_eq!(client.state, State::Done);
                 assert_eq!(result, (Version::N2N(7), 0xdddddddd));
             },
@@ -449,13 +444,12 @@ mod tests {
         tokio::join!(
             async {
                 let mut server = Handshake::builder()
-                    .server()
                     .node_to_node()
                     .network_magic(magic)
-                    .build(&mut connection)
+                    .server(&mut connection)
                     .unwrap();
                 assert_eq!(server.state, State::Propose);
-                let result = server.run().await.unwrap();
+                let result = server.negotiate().await.unwrap();
                 assert_eq!(server.state, State::Done);
                 assert_eq!(result, (Version::N2N(7), magic));
             },

@@ -31,11 +31,10 @@ async fn ping(host: &String, magic: u32) -> Result<(Duration, Duration), String>
     };
     let connect_duration = connection.duration();
     Handshake::builder()
-        .client()
         .node_to_node()
         .network_magic(magic)
-        .build(&mut connection)?
-        .run()
+        .client(&mut connection)?
+        .negotiate()
         .await?;
     let total_duration = connection.duration();
     Ok((connect_duration, total_duration))

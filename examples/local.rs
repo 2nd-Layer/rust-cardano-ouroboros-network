@@ -29,11 +29,10 @@ async fn local(magic: u32) -> Result<(), Box<dyn std::error::Error>> {
     let mut connection = Connection::unix_connect(socket_path).await?;
 
     Handshake::builder()
-        .client()
         .client_to_node()
         .network_magic(magic)
-        .build(&mut connection)?
-        .run()
+        .client(&mut connection)?
+        .negotiate()
         .await?;
 
     info!("Ping UNIX socket success");

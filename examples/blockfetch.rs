@@ -23,11 +23,10 @@ async fn blockfetch() -> Result<(), Box<dyn std::error::Error>> {
         Err(_) => return Err("Could not connect.".to_string().into()),
     };
     Handshake::builder()
-        .client()
         .node_to_node()
         .network_magic(cfg.magic)
-        .build(&mut connection)?
-        .run()
+        .client(&mut connection)?
+        .negotiate()
         .await?;
 
     let mut blockfetch = BlockFetch::builder()
