@@ -22,7 +22,6 @@ use crate::{
     model::{Point, Tip, BlockHeader},
 };
 use serde_cbor::{
-    de,
     de::Deserializer,
     to_vec,
     Value,
@@ -256,38 +255,21 @@ impl TryInto<Tip> for Values<'_> {
     }
 }
 
-trait UnwrapValue {
-    fn array(&self) -> Result<&Vec<Value>, Error>;
-    fn integer(&self) -> Result<i128, Error>;
-    fn bytes(&self) -> Result<&Vec<u8>, Error>;
-}
-
-impl UnwrapValue for Value {
-    fn array(&self) -> Result<&Vec<Value>, Error> {
-        match self {
-            Value::Array(array) => Ok(array),
-            _ => Err(format!("Integer required: {:?}", self)),
-        }
-    }
-
-    fn integer(&self) -> Result<i128, Error> {
-        match self {
-            Value::Integer(value) => Ok(*value),
-            _ => Err(format!("Integer required: {:?}", self)),
-        }
-    }
-
-    fn bytes(&self) -> Result<&Vec<u8>, Error> {
-        match self {
-            Value::Bytes(vec) => Ok(vec),
-            _ => Err(format!("Bytes required: {:?}", self)),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct WrappedBlockHeader {
     bytes: Vec<u8>,
+}
+
+impl WrappedBlockHeader {
+    fn hash(&self) -> Vec<u8> {
+        Params::new()
+            .hash_length(32)
+            .to_state()
+            .update(&*self.bytes)
+            .finalize()
+            .as_bytes()
+            .to_vec()
+    }
 }
 
 impl TryInto<WrappedBlockHeader> for Values<'_> {
@@ -306,95 +288,53 @@ impl TryInto<BlockHeader> for WrappedBlockHeader {
     type Error = Error;
 
     fn try_into(self) -> Result<BlockHeader, Self::Error> {
-        let mut msg_roll_forward = BlockHeader {
-            block_number: 0,
-            slot_number: 0,
-            hash: vec![],
-            prev_hash: vec![],
-            node_vkey: vec![],
-            node_vrf_vkey: vec![],
-            eta_vrf_0: vec![],
-            eta_vrf_1: vec![],
-            leader_vrf_0: vec![],
-            leader_vrf_1: vec![],
-            block_size: 0,
-            block_body_hash: vec![],
-            pool_opcert: vec![],
-            unknown_0: 0,
-            unknown_1: 0,
-            unknown_2: vec![],
-            protocol_major_version: 0,
-            protocol_minor_version: 0,
-        };
-        let wrapped_block_header_bytes = self.bytes;
-
-        // calculate the block hash
-        let hash = Params::new()
-            .hash_length(32)
-            .to_state()
-            .update(&*wrapped_block_header_bytes)
-            .finalize();
-        msg_roll_forward.hash = hash.as_bytes().to_owned();
-
-        let block_header: Value = de::from_slice(&wrapped_block_header_bytes[..]).unwrap();
-        match block_header {
-            Value::Array(block_header_array) => match &block_header_array[0] {
-                Value::Array(block_header_array_inner) => {
-                    msg_roll_forward.block_number = block_header_array_inner[0].integer()? as i64;
-                    msg_roll_forward.slot_number = block_header_array_inner[1].integer()? as i64;
-                    msg_roll_forward
-                        .prev_hash
-                        .append(&mut block_header_array_inner[2].bytes()?.clone());
-                    msg_roll_forward
-                        .node_vkey
-                        .append(&mut block_header_array_inner[3].bytes()?.clone());
-                    msg_roll_forward
-                        .node_vrf_vkey
-                        .append(&mut block_header_array_inner[4].bytes()?.clone());
-                    match &block_header_array_inner[5] {
-                        Value::Array(nonce_array) => {
-                            msg_roll_forward
-                                .eta_vrf_0
-                                .append(&mut nonce_array[0].bytes()?.clone());
-                            msg_roll_forward
-                                .eta_vrf_1
-                                .append(&mut nonce_array[1].bytes()?.clone());
-                        }
-                        _ => return Err("invalid cbor! code: 340".to_string()),
-                    }
-                    match &block_header_array_inner[6] {
-                        Value::Array(leader_array) => {
-                            msg_roll_forward
-                                .leader_vrf_0
-                                .append(&mut leader_array[0].bytes()?.clone());
-                            msg_roll_forward
-                                .leader_vrf_1
-                                .append(&mut leader_array[1].bytes()?.clone());
-                        }
-                        _ => return Err("invalid cbor! code: 341".to_string()),
-                    }
-                    msg_roll_forward.block_size = block_header_array_inner[7].integer()? as i64;
-                    msg_roll_forward
-                        .block_body_hash
-                        .append(&mut block_header_array_inner[8].bytes()?.clone());
-                    msg_roll_forward
-                        .pool_opcert
-                        .append(&mut block_header_array_inner[9].bytes()?.clone());
-                    msg_roll_forward.unknown_0 = block_header_array_inner[10].integer()? as i64;
-                    msg_roll_forward.unknown_1 = block_header_array_inner[11].integer()? as i64;
-                    msg_roll_forward
-                        .unknown_2
-                        .append(&mut block_header_array_inner[12].bytes()?.clone());
-                    msg_roll_forward.protocol_major_version =
-                        block_header_array_inner[13].integer()? as i64;
-                    msg_roll_forward.protocol_minor_version =
-                        block_header_array_inner[14].integer()? as i64;
-                }
-                _ => return Err("invalid cbor! code: 342".to_string()),
-            },
-            _ => return Err("invalid cbor! code: 343".to_string()),
-        }
-        Ok(msg_roll_forward)
+        let hash = self.hash();
+        let value = serde_cbor::from_slice(&self.bytes).map_err(|e| format!("{:?}", e))?;
+        let mut outer_array = Values::from_vec(&value);
+        let mut array = outer_array.array()?;
+        let block_number = array.integer()? as i64;
+        let slot_number = array.integer()? as i64;
+        let prev_hash = array.bytes()?.to_vec();
+        let node_vkey = array.bytes()?.to_vec();
+        let node_vrf_vkey = array.bytes()?.to_vec();
+        let mut eta_vrf = array.array()?;
+        let eta_vrf_0 = eta_vrf.bytes()?.to_vec();
+        let eta_vrf_1 = eta_vrf.bytes()?.to_vec();
+        eta_vrf.end()?;
+        let mut leader_vrf = array.array()?;
+        let leader_vrf_0 = leader_vrf.bytes()?.to_vec();
+        let leader_vrf_1 = leader_vrf.bytes()?.to_vec();
+        leader_vrf.end()?;
+        let block_size = array.integer()? as i64;
+        let block_body_hash = array.bytes()?.to_vec();
+        let pool_opcert = array.bytes()?.to_vec();
+        let unknown_0 = array.integer()? as i64;
+        let unknown_1 = array.integer()? as i64;
+        let unknown_2 = array.bytes()?.to_vec();
+        let protocol_major_version = array.integer()? as i64;
+        let protocol_minor_version = array.integer()? as i64;
+        array.end()?;
+        outer_array.end()?;
+        Ok(BlockHeader {
+            block_number,
+            slot_number,
+            hash,
+            prev_hash,
+            node_vkey,
+            node_vrf_vkey,
+            eta_vrf_0,
+            eta_vrf_1,
+            leader_vrf_0,
+            leader_vrf_1,
+            block_size,
+            block_body_hash,
+            pool_opcert,
+            unknown_0,
+            unknown_1,
+            unknown_2,
+            protocol_major_version,
+            protocol_minor_version,
+        })
     }
 }
 
