@@ -24,7 +24,6 @@ use std::{
         Instant,
     },
 };
-use tokio;
 use tokio::{
     io::{
         AsyncRead,
@@ -40,6 +39,7 @@ use tokio::{
     },
     task,
 };
+use log::error;
 
 #[cfg(target_family = "unix")]
 use tokio::net::UnixStream;
@@ -139,13 +139,13 @@ impl Connection {
     }
 
     fn register(&mut self, idx: u16) -> Receiver<Payload> {
-        trace!("Registering channel {}.", idx);
+        trace!("Registering channel 0x{:04x}.", idx);
         let (tx, rx) = mpsc::unbounded_channel();
         self.channels.lock().unwrap().insert(idx, tx);
         rx
     }
     fn unregister(&mut self, idx: u16) {
-        trace!("Unregistering channel {}.", idx);
+        trace!("Unregistering channel 0x{:04x}.", idx);
         self.channels.lock().unwrap().remove(&idx);
     }
     async fn send(&self, idx: u16, payload: &[u8]) {

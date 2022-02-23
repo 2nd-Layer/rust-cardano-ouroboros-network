@@ -101,7 +101,7 @@ pub trait Protocol<'a> {
     }
 
     async fn execute(&mut self) -> Result<(), Error> {
-        trace!("Executing self {}.", self.channel().get_index());
+        trace!("Executing on channel 0x{:04x}.", self.channel().get_index());
         while self.agency() != Agency::None {
             let agency = self.agency();
             let role = self.role();
