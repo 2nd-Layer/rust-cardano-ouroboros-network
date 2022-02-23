@@ -29,8 +29,8 @@ async fn chainsync() -> Result<(), Box<dyn std::error::Error>> {
         .client()
         .node_to_node()
         .network_magic(cfg.magic)
-        .build()?
-        .run(&mut connection)
+        .build(&mut connection)?
+        .run()
         .await?;
 
     let mut chainsync = ChainSync::builder().build(&mut connection);

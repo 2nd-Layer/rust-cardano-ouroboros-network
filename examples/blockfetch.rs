@@ -26,8 +26,8 @@ async fn blockfetch() -> Result<(), Box<dyn std::error::Error>> {
         .client()
         .node_to_node()
         .network_magic(cfg.magic)
-        .build()?
-        .run(&mut connection)
+        .build(&mut connection)?
+        .run()
         .await?;
 
     let mut blockfetch = BlockFetch::builder()

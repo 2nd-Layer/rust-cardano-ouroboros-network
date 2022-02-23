@@ -39,8 +39,8 @@ async fn handle(stream: TcpStream, cfg: &common::Config) -> Result<(), Error> {
         .server()
         .node_to_node()
         .network_magic(cfg.magic)
-        .build()?
-        .run(&mut connection)
+        .build(&mut connection)?
+        .run()
         .await?;
 
     Ok(())

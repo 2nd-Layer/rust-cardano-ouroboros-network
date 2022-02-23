@@ -32,8 +32,8 @@ async fn local(magic: u32) -> Result<(), Box<dyn std::error::Error>> {
         .client()
         .client_to_node()
         .network_magic(magic)
-        .build()?
-        .run(&mut connection)
+        .build(&mut connection)?
+        .run()
         .await?;
 
     info!("Ping UNIX socket success");

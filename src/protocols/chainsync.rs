@@ -22,7 +22,6 @@ use crate::{
     Error,
     protocols::Agency,
     protocols::Protocol,
-    protocols::execute,
 };
 use serde_cbor::Value;
 
@@ -111,7 +110,7 @@ pub struct ChainSyncBuilder {}
 impl ChainSyncBuilder {
     pub fn build<'a>(self, connection: &'a mut Connection) -> ChainSync<'a> {
         ChainSync {
-            channel: Some(connection.channel(0x0002)),
+            channel: connection.channel(0x0002),
             intersect: None,
             reply: None,
             state: State::Idle,
@@ -138,7 +137,7 @@ enum Query {
 }
 
 pub struct ChainSync<'a> {
-    channel: Option<Channel<'a>>,
+    channel: Channel<'a>,
     query: Option<Query>,
     intersect: Option<Intersect>,
     reply: Option<Reply>,
@@ -161,20 +160,9 @@ impl<'a> ChainSync<'a> {
         self.execute().await?;
         Ok(self.reply.take().unwrap())
     }
-
-    async fn execute(&mut self) -> Result<(), Error> {
-        // TODO: Do something with the Option trick.
-        let mut channel = self
-            .channel
-            .take()
-            .ok_or("Channel not available.".to_string())?;
-        execute(&mut channel, self).await?;
-        self.channel = Some(channel);
-        Ok(())
-    }
 }
 
-impl Protocol for ChainSync<'_> {
+impl<'a> Protocol<'a> for ChainSync<'a> {
     type State = State;
     type Message = Message;
 
@@ -253,5 +241,12 @@ impl Protocol for ChainSync<'_> {
             other => return Err(format!("Got unexpected message: {:?}", other)),
         }
         Ok(())
+    }
+
+    fn channel<'b>(&'b mut self) -> &mut Channel<'a>
+    where
+        'a: 'b
+    {
+        &mut self.channel
     }
 }

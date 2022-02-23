@@ -29,8 +29,10 @@ use serde_cbor::{
 };
 use log::{trace, debug};
 use blake2b_simd::Params;
+use async_trait::async_trait;
 
-pub trait Protocol {
+#[async_trait]
+pub trait Protocol<'a> {
     type State: std::fmt::Debug;
     type Message: Message;
 
@@ -97,33 +99,33 @@ pub trait Protocol {
         assert_eq!(d.byte_offset(), data.len());
         None
     }
-}
 
-pub async fn execute<P>(channel: &mut Channel<'_>, protocol: &mut P) -> Result<(), Error>
-where
-    P: Protocol,
-{
-    trace!("Executing protocol {}.", channel.get_index());
-    while protocol.agency() != Agency::None {
-        let agency = protocol.agency();
-        let role = protocol.role();
-        assert!(agency != Agency::None);
-        if agency == role {
-            channel.send(&protocol.send_bytes().unwrap()).await?;
-        } else {
-            let mut bytes = std::mem::replace(&mut channel.bytes, Vec::new());
-            let new_data = channel.recv().await?;
-            bytes.extend(new_data);
-            channel.bytes = protocol
-                .receive_bytes(bytes)
-                .unwrap_or(Box::new([]))
-                .into_vec();
-            if !channel.bytes.is_empty() {
-                trace!("Keeping {} bytes for the next frame.", channel.bytes.len());
+    async fn execute(&mut self) -> Result<(), Error> {
+        trace!("Executing self {}.", self.channel().get_index());
+        while self.agency() != Agency::None {
+            let agency = self.agency();
+            let role = self.role();
+            assert!(agency != Agency::None);
+            if agency == role {
+                let data = self.send_bytes().unwrap();
+                self.channel().send(&data).await?;
+            } else {
+                let mut bytes = std::mem::replace(&mut self.channel().bytes, Vec::new());
+                let new_data = self.channel().recv().await?;
+                bytes.extend(new_data);
+                self.channel().bytes = self
+                    .receive_bytes(bytes)
+                    .unwrap_or(Box::new([]))
+                    .into_vec();
+                if !self.channel().bytes.is_empty() {
+                    trace!("Keeping {} bytes for the next frame.", self.channel().bytes.len());
+                }
             }
         }
+        Ok(())
     }
-    Ok(())
+
+    fn channel<'b>(&'b mut self) -> &mut Channel<'a> where 'a: 'b;
 }
 
 pub trait Message: std::fmt::Debug + Sized {

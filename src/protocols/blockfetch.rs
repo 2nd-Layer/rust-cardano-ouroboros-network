@@ -15,7 +15,6 @@ use crate::{
     protocols::Agency,
     protocols::Protocol,
     model::Point,
-    protocols::execute,
     protocols::Values,
 };
 use serde_cbor::Value;
@@ -113,7 +112,7 @@ impl Builder {
         connection: &'a mut Connection,
     ) -> Result<BlockFetch<'a>, Error> {
         Ok(BlockFetch {
-            channel: Some(connection.channel(0x0003)),
+            channel: connection.channel(0x0003),
             config: Config {
                 first: self.first.as_ref().ok_or("First point required.")?.clone(),
                 last: self.last.as_ref().ok_or("Last point required.")?.clone(),
@@ -132,7 +131,7 @@ pub struct Config {
 }
 
 pub struct BlockFetch<'a> {
-    channel: Option<Channel<'a>>,
+    channel: Channel<'a>,
     config: Config,
     state: State,
     result: Vec<Box<[u8]>>,
@@ -158,17 +157,6 @@ impl<'a> BlockFetch<'a> {
         self.running = true;
         self.done = true;
         self.execute().await?;
-        Ok(())
-    }
-
-    async fn execute(&mut self) -> Result<(), Error> {
-        // TODO: Do something with the Option trick.
-        let mut channel = self
-            .channel
-            .take()
-            .ok_or("Channel not available.".to_string())?;
-        execute(&mut channel, self).await?;
-        self.channel = Some(channel);
         Ok(())
     }
 }
@@ -197,7 +185,7 @@ impl BlockStream<'_, '_> {
     }
 }
 
-impl Protocol for BlockFetch<'_> {
+impl<'a> Protocol<'a> for BlockFetch<'a> {
     type State = State;
     type Message = Message;
 
@@ -267,6 +255,13 @@ impl Protocol for BlockFetch<'_> {
             }
             (state, message) => panic!("Unexpected message {:?} in state {:?}.", message, state),
         })
+    }
+
+    fn channel<'b>(&'b mut self) -> &mut Channel<'a>
+    where
+        'a: 'b
+    {
+        &mut self.channel
     }
 }
 

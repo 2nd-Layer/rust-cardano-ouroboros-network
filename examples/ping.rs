@@ -34,8 +34,8 @@ async fn ping(host: &String, magic: u32) -> Result<(Duration, Duration), String>
         .client()
         .node_to_node()
         .network_magic(magic)
-        .build()?
-        .run(&mut connection)
+        .build(&mut connection)?
+        .run()
         .await?;
     let total_duration = connection.duration();
     Ok((connect_duration, total_duration))
