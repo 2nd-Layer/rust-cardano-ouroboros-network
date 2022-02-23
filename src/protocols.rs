@@ -403,7 +403,7 @@ mod test {
 
     #[test]
     fn header_converts() {
-        let header = BlockHeader {
+        let mut header = BlockHeader {
             block_number: 1,
             slot_number: 2,
             hash: vec![],
@@ -424,10 +424,10 @@ mod test {
             protocol_minor_version: 7,
         };
         // Get the hash computed first.
-        let wrapped: WrappedBlockHeader = header.try_into().unwrap();
-        let header: BlockHeader = wrapped.try_into().unwrap();
-        // Now for the real.
         let wrapped: WrappedBlockHeader = header.clone().try_into().unwrap();
+        header.hash = wrapped.hash();
+        let wrapped: WrappedBlockHeader = header.clone().try_into().unwrap();
+        assert_eq!(header.hash, wrapped.hash());
         assert_eq!(
             header,
             wrapped.try_into().unwrap(),
