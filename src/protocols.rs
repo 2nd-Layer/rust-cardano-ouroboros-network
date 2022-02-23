@@ -380,7 +380,7 @@ mod test {
     fn point_converts() {
         let point = Point {
             slot: 0x1122334455667788,
-            hash: b"fake-hash".to_vec(),
+            hash: b"mock-hash".to_vec(),
         };
         assert_eq!(
             point.clone(),
@@ -393,7 +393,7 @@ mod test {
         let tip = Tip {
             block_number: 0x1234,
             slot_number: 0x5678,
-            hash: b"fake-hash".to_vec(),
+            hash: b"mock-hash".to_vec(),
         };
         assert_eq!(
             tip.clone(),

@@ -296,9 +296,9 @@ mod tests {
 
     #[test]
     fn message_cbor_works() {
-        let point = Point { slot: 0x1234, hash: b"fake-point-hash".to_vec() };
-        let tip = Tip { slot_number: 0x5678, hash: b"fake-tip-hash".to_vec(), block_number: 0xabcd };
-        let header = WrappedBlockHeader { bytes: b"fake-block-header".to_vec() };
+        let point = Point { slot: 0x1234, hash: b"mock-point-hash".to_vec() };
+        let tip = Tip { slot_number: 0x5678, hash: b"mock-tip-hash".to_vec(), block_number: 0xabcd };
+        let header = WrappedBlockHeader { bytes: b"mock-block-header".to_vec() };
         let messages = [
             Message::RequestNext,
             Message::AwaitReply,
