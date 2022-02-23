@@ -210,6 +210,13 @@ impl<'a> Values<'a> {
     }
 }
 
+pub(crate) fn point_to_vec(point: &Point) -> Vec<Value> {
+    vec![
+        Value::Integer(point.slot.into()),
+        Value::Bytes(point.hash.clone()),
+    ]
+}
+
 impl TryInto<Point> for Values<'_> {
     type Error = Error;
 
@@ -219,6 +226,16 @@ impl TryInto<Point> for Values<'_> {
         self.end()?;
         Ok(Point { slot, hash })
     }
+}
+
+pub(crate) fn tip_to_vec(tip: &Tip) -> Vec<Value> {
+    vec![
+        Value::Array(vec![
+            Value::Integer(tip.slot_number.into()),
+            Value::Bytes(tip.hash.clone()),
+        ]),
+        Value::Integer(tip.block_number.into()),
+    ]
 }
 
 impl TryInto<Tip> for Values<'_> {
@@ -268,11 +285,27 @@ impl UnwrapValue for Value {
     }
 }
 
-impl TryInto<BlockHeader> for Values<'_> {
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct WrappedBlockHeader {
+    bytes: Vec<u8>,
+}
+
+impl TryInto<WrappedBlockHeader> for Values<'_> {
     type Error = Error;
 
-    fn try_into(self) -> Result<BlockHeader, Error> {
+    fn try_into(self) -> Result<WrappedBlockHeader, Error> {
         let mut array = self;
+        array.integer()?;
+        let bytes = array.bytes()?.clone();
+        array.end()?;
+        Ok(WrappedBlockHeader { bytes })
+    }
+}
+
+impl TryInto<BlockHeader> for WrappedBlockHeader {
+    type Error = Error;
+
+    fn try_into(self) -> Result<BlockHeader, Self::Error> {
         let mut msg_roll_forward = BlockHeader {
             block_number: 0,
             slot_number: 0,
@@ -293,10 +326,7 @@ impl TryInto<BlockHeader> for Values<'_> {
             protocol_major_version: 0,
             protocol_minor_version: 0,
         };
-
-        array.integer()?;
-        let wrapped_block_header_bytes = array.bytes()?.clone();
-        array.end()?;
+        let wrapped_block_header_bytes = self.bytes;
 
         // calculate the block hash
         let hash = Params::new()
@@ -365,5 +395,35 @@ impl TryInto<BlockHeader> for Values<'_> {
             _ => return Err("invalid cbor! code: 343".to_string()),
         }
         Ok(msg_roll_forward)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    pub fn point_converts() {
+        let point = Point {
+            slot: 0x1122334455667788,
+            hash: b"fake-hash".to_vec(),
+        };
+        assert_eq!(
+            point.clone(),
+            Values::from_vec(&point_to_vec(&point)).try_into().unwrap(),
+        );
+    }
+
+    #[test]
+    pub fn tip_converts() {
+        let tip = Tip {
+            block_number: 0x1234,
+            slot_number: 0x5678,
+            hash: b"fake-hash".to_vec(),
+        };
+        assert_eq!(
+            tip.clone(),
+            Values::from_vec(&tip_to_vec(&tip)).try_into().unwrap(),
+        );
     }
 }

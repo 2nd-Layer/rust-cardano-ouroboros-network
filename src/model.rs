@@ -13,7 +13,7 @@ pub struct Tip {
     pub hash: Vec<u8>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BlockHeader {
     pub block_number: i64,
     pub slot_number: i64,

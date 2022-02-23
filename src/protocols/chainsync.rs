@@ -22,6 +22,9 @@ use crate::{
     Error,
     protocols::Agency,
     protocols::Protocol,
+    protocols::WrappedBlockHeader,
+    protocols::point_to_vec,
+    protocols::tip_to_vec,
 };
 use serde_cbor::Value;
 
@@ -34,11 +37,11 @@ pub enum State {
     Done,
 }
 
-#[derive(Debug)]
-pub enum Message {
+#[derive(Debug, PartialEq)]
+pub(crate) enum Message {
     RequestNext,
     AwaitReply,
-    RollForward(BlockHeader, Tip),
+    RollForward(WrappedBlockHeader, Tip),
     RollBackward(Point, Tip),
     FindIntersect(Vec<Point>),
     IntersectFound(Point, Tip),
@@ -59,6 +62,17 @@ impl MessageOps for Message {
                 array.array()?.try_into()?,
                 array.array()?.try_into()?,
             ),
+            4 => Message::FindIntersect(
+                {
+                    let mut points = Vec::new();
+                    let mut items = array.array()?;
+                    while let Ok(item) = items.array() {
+                        points.push(item.try_into()?);
+                    }
+                    items.end()?;
+                    points
+                }
+            ),
             5 => Message::IntersectFound(
                 array.array()?.try_into()?,
                 array.array()?.try_into()?,
@@ -75,7 +89,25 @@ impl MessageOps for Message {
 
     fn to_values(&self) -> Vec<Value> {
         match self {
-            Message::RequestNext => vec![Value::Integer(0)],
+            Message::RequestNext => vec![
+                Value::Integer(0),
+            ],
+            Message::AwaitReply => vec![
+                Value::Integer(1),
+            ],
+            Message::RollForward(header, tip) => vec![
+                Value::Integer(2),
+                Value::Array(vec![
+                    Value::Integer(0),
+                    Value::Bytes(header.bytes.clone()),
+                ]),
+                Value::Array(tip_to_vec(tip)),
+            ],
+            Message::RollBackward(point, tip) => vec![
+                Value::Integer(3),
+                Value::Array(point_to_vec(point)),
+                Value::Array(tip_to_vec(tip)),
+            ],
             Message::FindIntersect(points) => vec![
                 Value::Integer(4),
                 Value::Array(
@@ -90,15 +122,24 @@ impl MessageOps for Message {
                         .collect(),
                 ),
             ],
-            _ => panic!(),
+            Message::IntersectFound(point, tip) => vec![
+                Value::Integer(5),
+                Value::Array(point_to_vec(point)),
+                Value::Array(tip_to_vec(tip)),
+            ],
+            Message::IntersectNotFound(tip) => vec![
+                Value::Integer(6),
+                Value::Array(tip_to_vec(tip)),
+            ],
+            Message::Done => vec![
+                Value::Integer(7),
+            ],
         }
     }
 
     fn info(&self) -> String {
         match self {
-            Message::RollForward(header, _tip) => {
-                format!("block={} slot={}", header.block_number, header.slot_number,)
-            }
+            Message::RollForward(_header, tip) => format!("Message::RollForward(..., {:?})", tip),
             other => format!("{:?}", other),
         }
     }
@@ -215,7 +256,7 @@ impl<'a> Protocol<'a> for ChainSync<'a> {
                 self.state = State::MustReply;
             }
             Message::RollForward(header, tip) => {
-                self.reply = Some(Reply::Forward(header, tip));
+                self.reply = Some(Reply::Forward(header.try_into()?, tip));
                 self.query = None;
                 self.state = State::Idle;
             }
@@ -247,5 +288,32 @@ impl<'a> Protocol<'a> for ChainSync<'a> {
         'a: 'b
     {
         &mut self.channel
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn message_cbor_works() {
+        let point = Point { slot: 0x1234, hash: b"fake-point-hash".to_vec() };
+        let tip = Tip { slot_number: 0x5678, hash: b"fake-tip-hash".to_vec(), block_number: 0xabcd };
+        let header = WrappedBlockHeader { bytes: b"fake-block-header".to_vec() };
+        let messages = [
+            Message::RequestNext,
+            Message::AwaitReply,
+            Message::RollForward(header, tip.clone()),
+            Message::RollBackward(point.clone(), tip.clone()),
+            Message::FindIntersect(vec![point.clone(), point.clone()]),
+            Message::IntersectFound(point.clone(), tip.clone()),
+            Message::IntersectNotFound(tip.clone()),
+            Message::Done,
+        ];
+        for message in messages {
+            assert_eq!(
+                Message::from_iter(Values::from_vec(&message.to_values())),
+                Ok(message),
+            );
+        }
     }
 }
