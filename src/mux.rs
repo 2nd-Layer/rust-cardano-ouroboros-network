@@ -181,7 +181,10 @@ impl Connection {
                         //trace!("Reading payload, idx={} length={}.", idx, length);
                         let mut payload = vec![0u8; length];
                         receiver.read_exact(&mut payload).await.unwrap();
-                        channels.lock().unwrap()[&idx].send(payload).unwrap();
+                        match channels.lock().unwrap().get(&idx) {
+                            Some(channel) => channel.send(payload).unwrap(),
+                            None => error!("Channel 0x{:04x} not attached.", idx),
+                        }
                     }
                 })));
                 *demux_lock = Arc::downgrade(&demux);
