@@ -398,12 +398,46 @@ impl TryInto<BlockHeader> for WrappedBlockHeader {
     }
 }
 
+impl TryFrom<BlockHeader> for WrappedBlockHeader {
+    type Error = Error;
+
+    fn try_from(header: BlockHeader) -> Result<Self, Self::Error> {
+        let value = Value::Array(vec![
+            Value::Array(vec![
+                Value::Integer(header.block_number.into()),
+                Value::Integer(header.slot_number.into()),
+                Value::Bytes(header.prev_hash),
+                Value::Bytes(header.node_vkey),
+                Value::Bytes(header.node_vrf_vkey),
+                Value::Array(vec![
+                    Value::Bytes(header.eta_vrf_0),
+                    Value::Bytes(header.eta_vrf_1),
+                ]),
+                Value::Array(vec![
+                    Value::Bytes(header.leader_vrf_0),
+                    Value::Bytes(header.leader_vrf_1),
+                ]),
+                Value::Integer(header.block_size.into()),
+                Value::Bytes(header.block_body_hash),
+                Value::Bytes(header.pool_opcert),
+                Value::Integer(header.unknown_0.into()),
+                Value::Integer(header.unknown_1.into()),
+                Value::Bytes(header.unknown_2),
+                Value::Integer(header.protocol_major_version.into()),
+                Value::Integer(header.protocol_minor_version.into()),
+            ]),
+        ]);
+        let bytes = to_vec(&value).map_err(|e| format!("{:?}", e))?.to_vec();
+        Ok(WrappedBlockHeader { bytes })
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
-    pub fn point_converts() {
+    fn point_converts() {
         let point = Point {
             slot: 0x1122334455667788,
             hash: b"fake-hash".to_vec(),
@@ -415,7 +449,7 @@ mod test {
     }
 
     #[test]
-    pub fn tip_converts() {
+    fn tip_converts() {
         let tip = Tip {
             block_number: 0x1234,
             slot_number: 0x5678,
@@ -424,6 +458,39 @@ mod test {
         assert_eq!(
             tip.clone(),
             Values::from_vec(&tip_to_vec(&tip)).try_into().unwrap(),
+        );
+    }
+
+    #[test]
+    fn header_converts() {
+        let header = BlockHeader {
+            block_number: 1,
+            slot_number: 2,
+            hash: vec![],
+            prev_hash: b"mock-prev-hash".to_vec(),
+            node_vkey: b"mock-node-vkey".to_vec(),
+            node_vrf_vkey: b"mock-node-vrf_vkey".to_vec(),
+            eta_vrf_0: b"mock-eta-vrf-0".to_vec(),
+            eta_vrf_1: b"mock-eta-vrf-1".to_vec(),
+            leader_vrf_0: b"mock-leader-vrf-0".to_vec(),
+            leader_vrf_1: b"mock-leader-vrf-1".to_vec(),
+            block_size: 3,
+            block_body_hash: b"mock-block-body-hash".to_vec(),
+            pool_opcert: b"mock-pool-opcert".to_vec(),
+            unknown_0: 4,
+            unknown_1: 5,
+            unknown_2: b"mock-unknown-2".to_vec(),
+            protocol_major_version: 6,
+            protocol_minor_version: 7,
+        };
+        // Get the hash computed first.
+        let wrapped: WrappedBlockHeader = header.try_into().unwrap();
+        let header: BlockHeader = wrapped.try_into().unwrap();
+        // Now for the real.
+        let wrapped: WrappedBlockHeader = header.clone().try_into().unwrap();
+        assert_eq!(
+            header,
+            wrapped.try_into().unwrap(),
         );
     }
 }
