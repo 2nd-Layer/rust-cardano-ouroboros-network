@@ -106,7 +106,7 @@ impl Builder {
         self.last = Some((slot, hash.as_slice()).into());
         self
     }
-    pub fn build<'a>(
+    pub fn client<'a>(
         &mut self,
         connection: &'a mut Connection,
     ) -> Result<BlockFetch<'a>, Error> {
@@ -311,7 +311,7 @@ mod tests {
         let mut client = BlockFetch::builder()
             .first(first_slot, first_hash.to_vec())
             .last(last_slot, last_hash.to_vec())
-            .build(&mut connection)
+            .client(&mut connection)
             .unwrap();
         assert_eq!(client.state, State::Idle);
         // Client collects a range of blocks.

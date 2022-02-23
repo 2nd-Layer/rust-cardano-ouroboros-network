@@ -38,7 +38,7 @@ async fn blockfetch() -> Result<(), Box<dyn std::error::Error>> {
             26250057,
             hex::decode("5fec758c8aaff4a7683c27b075dc3984d8d982839cc56470a682d1411c9f8198")?,
         )
-        .build(&mut connection)?;
+        .client(&mut connection)?;
     let mut blocks = blockfetch.run().await?;
 
     while let Some(block) = blocks.next().await? {

@@ -107,7 +107,7 @@ impl MessageOps for Message {
 pub struct ChainSyncBuilder {}
 
 impl ChainSyncBuilder {
-    pub fn build<'a>(self, connection: &'a mut Connection) -> ChainSync<'a> {
+    pub fn client<'a>(self, connection: &'a mut Connection) -> ChainSync<'a> {
         ChainSync {
             channel: connection.channel(0x0002),
             intersect: None,

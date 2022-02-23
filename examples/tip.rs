@@ -32,7 +32,7 @@ async fn tip() -> Result<(), Box<dyn std::error::Error>> {
         .negotiate()
         .await?;
 
-    let mut chainsync = ChainSync::builder().build(&mut connection);
+    let mut chainsync = ChainSync::builder().client(&mut connection);
     let intersect = chainsync
         .find_intersect(vec![cfg.byron_mainnet, cfg.byron_testnet, cfg.byron_guild])
         .await?;
