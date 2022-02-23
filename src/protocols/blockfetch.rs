@@ -38,8 +38,7 @@ pub enum Message {
 }
 
 impl MessageOps for Message {
-    fn from_values(values: Vec<Value>) -> Result<Self, Error> {
-        let mut array = Values::from_values(&values);
+    fn from_iter(mut array: Values) -> Result<Self, Error> {
         let message = match array.integer()? {
             0 => Message::RequestRange(
                 array.array()?.try_into()?,
@@ -295,7 +294,7 @@ mod tests {
         ];
         for message in messages {
             assert_eq!(
-                Message::from_values(message.to_values()),
+                Message::from_iter(Values::from_vec(&message.to_values())),
                 Ok(message),
             );
         }

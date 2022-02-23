@@ -32,7 +32,7 @@ use blake2b_simd::Params;
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait Protocol<'a> {
+pub(crate) trait Protocol<'a> {
     type State: std::fmt::Debug;
     type Message: Message;
 
@@ -80,7 +80,7 @@ pub trait Protocol<'a> {
         while let Some(chunk) = d.next() {
             match chunk {
                 Ok(values) => {
-                    let message = Self::Message::from_values(values).unwrap();
+                    let message = Self::Message::from_iter(Values::from_vec(&values)).unwrap();
                     let info = message.info();
                     self.recv(message).unwrap();
                     debug!("Rx: message {}", info);
@@ -128,8 +128,9 @@ pub trait Protocol<'a> {
     fn channel<'b>(&'b mut self) -> &mut Channel<'a> where 'a: 'b;
 }
 
-pub trait Message: std::fmt::Debug + Sized {
-    fn from_values(array: Vec<Value>) -> Result<Self, Error>;
+pub(crate) trait Message: std::fmt::Debug + Sized {
+    fn from_values(array: Vec<Value>) -> Result<Self, Error> { let _ = array; panic!() }
+    fn from_iter(array: Values) -> Result<Self, Error> { Self::from_values(array.to_vec()) }
     fn to_values(&self) -> Vec<Value>;
 
     fn to_bytes(&self) -> Vec<u8> {
@@ -156,13 +157,17 @@ pub enum Agency {
 pub(crate) struct Values<'a>(std::slice::Iter<'a, Value>);
 
 impl<'a> Values<'a> {
-    pub(crate) fn from_values(values: &'a Vec<Value>) -> Self {
+    pub(crate) fn from_vec(values: &'a Vec<Value>) -> Self {
         Values(values.iter())
+    }
+
+    pub(crate) fn to_vec(self) -> Vec<Value> {
+        self.0.cloned().collect()
     }
 
     pub(crate) fn array(&mut self) -> Result<Self, Error> {
         match self.0.next() {
-            Some(Value::Array(values)) => Ok(Values::from_values(values)),
+            Some(Value::Array(values)) => Ok(Values::from_vec(values)),
             other => Err(format!("Integer required: {:?}", other)),
         }
     }

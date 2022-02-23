@@ -47,8 +47,7 @@ pub enum Message {
 }
 
 impl MessageOps for Message {
-    fn from_values(values: Vec<Value>) -> Result<Self, Error> {
-        let mut array = Values::from_values(&values);
+    fn from_iter(mut array: Values) -> Result<Self, Error> {
         let message = match array.integer()? {
             0 => Message::RequestNext,
             1 => Message::AwaitReply,
