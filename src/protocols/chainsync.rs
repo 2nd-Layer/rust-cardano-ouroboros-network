@@ -13,18 +13,18 @@
 
 use crate::protocols::Message as MessageOps;
 use crate::{
+    model::BlockHeader,
     model::Point,
     model::Tip,
-    model::BlockHeader,
     mux::Channel,
     mux::Connection,
-    protocols::Values,
-    Error,
-    protocols::Agency,
-    protocols::Protocol,
-    protocols::WrappedBlockHeader,
     protocols::point_to_vec,
     protocols::tip_to_vec,
+    protocols::Agency,
+    protocols::Protocol,
+    protocols::Values,
+    protocols::WrappedBlockHeader,
+    Error,
 };
 use serde_cbor::Value;
 
@@ -54,32 +54,19 @@ impl MessageOps for Message {
         let message = match array.integer()? {
             0 => Message::RequestNext,
             1 => Message::AwaitReply,
-            2 => Message::RollForward(
-                array.array()?.try_into()?,
-                array.array()?.try_into()?,
-            ),
-            3 => Message::RollBackward(
-                array.array()?.try_into()?,
-                array.array()?.try_into()?,
-            ),
-            4 => Message::FindIntersect(
-                {
-                    let mut points = Vec::new();
-                    let mut items = array.array()?;
-                    while let Ok(item) = items.array() {
-                        points.push(item.try_into()?);
-                    }
-                    items.end()?;
-                    points
+            2 => Message::RollForward(array.array()?.try_into()?, array.array()?.try_into()?),
+            3 => Message::RollBackward(array.array()?.try_into()?, array.array()?.try_into()?),
+            4 => Message::FindIntersect({
+                let mut points = Vec::new();
+                let mut items = array.array()?;
+                while let Ok(item) = items.array() {
+                    points.push(item.try_into()?);
                 }
-            ),
-            5 => Message::IntersectFound(
-                array.array()?.try_into()?,
-                array.array()?.try_into()?,
-            ),
-            6 => Message::IntersectNotFound(
-                array.array()?.try_into()?,
-            ),
+                items.end()?;
+                points
+            }),
+            5 => Message::IntersectFound(array.array()?.try_into()?, array.array()?.try_into()?),
+            6 => Message::IntersectNotFound(array.array()?.try_into()?),
             7 => Message::Done,
             other => return Err(format!("Unexpected message: {}.", other)),
         };
@@ -89,18 +76,11 @@ impl MessageOps for Message {
 
     fn to_values(&self) -> Vec<Value> {
         match self {
-            Message::RequestNext => vec![
-                Value::Integer(0),
-            ],
-            Message::AwaitReply => vec![
-                Value::Integer(1),
-            ],
+            Message::RequestNext => vec![Value::Integer(0)],
+            Message::AwaitReply => vec![Value::Integer(1)],
             Message::RollForward(header, tip) => vec![
                 Value::Integer(2),
-                Value::Array(vec![
-                    Value::Integer(0),
-                    Value::Bytes(header.bytes.clone()),
-                ]),
+                Value::Array(vec![Value::Integer(0), Value::Bytes(header.bytes.clone())]),
                 Value::Array(tip_to_vec(tip)),
             ],
             Message::RollBackward(point, tip) => vec![
@@ -127,13 +107,10 @@ impl MessageOps for Message {
                 Value::Array(point_to_vec(point)),
                 Value::Array(tip_to_vec(tip)),
             ],
-            Message::IntersectNotFound(tip) => vec![
-                Value::Integer(6),
-                Value::Array(tip_to_vec(tip)),
-            ],
-            Message::Done => vec![
-                Value::Integer(7),
-            ],
+            Message::IntersectNotFound(tip) => {
+                vec![Value::Integer(6), Value::Array(tip_to_vec(tip))]
+            }
+            Message::Done => vec![Value::Integer(7)],
         }
     }
 
@@ -285,7 +262,7 @@ impl<'a> Protocol<'a> for ChainSync<'a> {
 
     fn channel<'b>(&'b mut self) -> &mut Channel<'a>
     where
-        'a: 'b
+        'a: 'b,
     {
         &mut self.channel
     }
@@ -296,9 +273,18 @@ mod tests {
 
     #[test]
     fn message_cbor_works() {
-        let point = Point { slot: 0x1234, hash: b"mock-point-hash".to_vec() };
-        let tip = Tip { slot_number: 0x5678, hash: b"mock-tip-hash".to_vec(), block_number: 0xabcd };
-        let header = WrappedBlockHeader { bytes: b"mock-block-header".to_vec() };
+        let point = Point {
+            slot: 0x1234,
+            hash: b"mock-point-hash".to_vec(),
+        };
+        let tip = Tip {
+            slot_number: 0x5678,
+            hash: b"mock-tip-hash".to_vec(),
+            block_number: 0xabcd,
+        };
+        let header = WrappedBlockHeader {
+            bytes: b"mock-block-header".to_vec(),
+        };
         let messages = [
             Message::RequestNext,
             Message::AwaitReply,

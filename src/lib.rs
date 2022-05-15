@@ -20,5 +20,3 @@ pub mod protocols;
 // you want to stay compatible.
 //
 type Error = String;
-
-

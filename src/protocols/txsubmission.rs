@@ -13,10 +13,13 @@
 
 use crate::protocols::Message as MessageOps;
 use crate::{
-    Error,
-    mux::{Connection, Channel},
+    mux::{
+        Channel,
+        Connection,
+    },
     protocols::Agency,
     protocols::Protocol,
+    Error,
 };
 use byteorder::WriteBytesExt;
 use log::{
@@ -172,7 +175,7 @@ impl<'a> Protocol<'a> for TxSubmission<'a> {
 
     fn channel<'b>(&'b mut self) -> &mut Channel<'a>
     where
-        'a: 'b
+        'a: 'b,
     {
         &mut self.channel
     }

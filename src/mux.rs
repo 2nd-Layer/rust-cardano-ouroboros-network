@@ -11,6 +11,7 @@ use byteorder::{
     ByteOrder,
     NetworkEndian,
 };
+use log::error;
 use log::trace;
 use std::{
     collections::HashMap,
@@ -39,7 +40,6 @@ use tokio::{
     },
     task,
 };
-use log::error;
 
 #[cfg(target_family = "unix")]
 use tokio::net::UnixStream;
@@ -123,7 +123,10 @@ impl Connection {
     #[cfg(target_family = "unix")]
     pub fn test_unix_pair() -> Result<(Connection, Connection), io::Error> {
         let (left, right) = UnixStream::pair()?;
-        Ok((Connection::from_unix_stream(left), Connection::from_unix_stream(right)))
+        Ok((
+            Connection::from_unix_stream(left),
+            Connection::from_unix_stream(right),
+        ))
     }
 
     pub fn channel<'a>(&'a mut self, idx: u16) -> Channel<'a> {
@@ -217,10 +220,7 @@ impl<'a> Channel<'a> {
 
     #[cfg(test)]
     pub(crate) async fn expect(&mut self, data: &[u8]) {
-        assert_eq!(
-            self.recv().await.unwrap(),
-            data,
-        );
+        assert_eq!(self.recv().await.unwrap(), data,);
     }
 }
 

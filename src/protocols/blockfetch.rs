@@ -11,11 +11,11 @@ use crate::mux::Channel;
 use crate::mux::Connection;
 use crate::protocols::Message as MessageOps;
 use crate::{
-    Error,
+    model::Point,
     protocols::Agency,
     protocols::Protocol,
-    model::Point,
     protocols::Values,
+    Error,
 };
 use serde_cbor::Value;
 
@@ -40,16 +40,11 @@ pub enum Message {
 impl MessageOps for Message {
     fn from_iter(mut array: Values) -> Result<Self, Error> {
         let message = match array.integer()? {
-            0 => Message::RequestRange(
-                array.array()?.try_into()?,
-                array.array()?.try_into()?,
-            ),
+            0 => Message::RequestRange(array.array()?.try_into()?, array.array()?.try_into()?),
             1 => Message::ClientDone,
             2 => Message::StartBatch,
             3 => Message::NoBlocks,
-            4 => Message::Block(
-                array.bytes()?.to_vec(),
-            ),
+            4 => Message::Block(array.bytes()?.to_vec()),
             5 => Message::BatchDone,
             _ => panic!(),
         };
@@ -64,22 +59,11 @@ impl MessageOps for Message {
                 vec![Value::Integer(first.slot.into()), first.hash.clone().into()].into(),
                 vec![Value::Integer(last.slot.into()), last.hash.clone().into()].into(),
             ],
-            Message::ClientDone => vec![
-                Value::Integer(1),
-            ],
-            Message::StartBatch => vec![
-                Value::Integer(2),
-            ],
-            Message::NoBlocks => vec![
-                Value::Integer(3),
-            ],
-            Message::Block(block)=> vec![
-                Value::Integer(4),
-                Value::Bytes(block.clone()),
-            ],
-            Message::BatchDone => vec![
-                Value::Integer(5),
-            ],
+            Message::ClientDone => vec![Value::Integer(1)],
+            Message::StartBatch => vec![Value::Integer(2)],
+            Message::NoBlocks => vec![Value::Integer(3)],
+            Message::Block(block) => vec![Value::Integer(4), Value::Bytes(block.clone())],
+            Message::BatchDone => vec![Value::Integer(5)],
         }
     }
 
@@ -110,10 +94,7 @@ impl Builder {
         self.last = Some((slot, hash.as_slice()).into());
         self
     }
-    pub fn client<'a>(
-        &mut self,
-        connection: &'a mut Connection,
-    ) -> Result<BlockFetch<'a>, Error> {
+    pub fn client<'a>(&mut self, connection: &'a mut Connection) -> Result<BlockFetch<'a>, Error> {
         Ok(BlockFetch {
             channel: connection.channel(0x0003),
             config: Config {
@@ -258,7 +239,7 @@ impl<'a> Protocol<'a> for BlockFetch<'a> {
 
     fn channel<'b>(&'b mut self) -> &mut Channel<'a>
     where
-        'a: 'b
+        'a: 'b,
     {
         &mut self.channel
     }
@@ -287,9 +268,7 @@ mod tests {
             Message::ClientDone,
             Message::StartBatch,
             Message::NoBlocks,
-            Message::Block(
-                first_block.to_vec(),
-            ),
+            Message::Block(first_block.to_vec()),
             Message::BatchDone,
         ];
         for message in messages {
@@ -319,24 +298,26 @@ mod tests {
             async {
                 let mut blocks = client.run().await.unwrap();
                 for (_, _, block) in MOCK_DATA {
-                    assert_eq!(
-                        blocks.next().await,
-                        Ok(Some(Box::from(*block))),
-                    );
+                    assert_eq!(blocks.next().await, Ok(Some(Box::from(*block))),);
                 }
-                assert_eq!(
-                    blocks.next().await,
-                    Ok(None),
-                );
+                assert_eq!(blocks.next().await, Ok(None),);
             },
             async {
-                channel.expect(&Message::RequestRange(
-                    (first_slot, first_hash).into(),
-                    (last_slot, last_hash).into(),
-                ).to_bytes()).await;
+                channel
+                    .expect(
+                        &Message::RequestRange(
+                            (first_slot, first_hash).into(),
+                            (last_slot, last_hash).into(),
+                        )
+                        .to_bytes(),
+                    )
+                    .await;
                 channel.send(&Message::StartBatch.to_bytes()).await.unwrap();
                 for (_, _, block) in MOCK_DATA {
-                    channel.send(&Message::Block(block.to_vec()).to_bytes()).await.unwrap();
+                    channel
+                        .send(&Message::Block(block.to_vec()).to_bytes())
+                        .await
+                        .unwrap();
                 }
                 channel.send(&Message::BatchDone.to_bytes()).await.unwrap();
             },
@@ -346,16 +327,18 @@ mod tests {
         tokio::join!(
             async {
                 let mut blocks = client.run().await.unwrap();
-                assert_eq!(
-                    blocks.next().await,
-                    Ok(None),
-                );
+                assert_eq!(blocks.next().await, Ok(None),);
             },
             async {
-                channel.expect(&Message::RequestRange(
-                    (first_slot, first_hash).into(),
-                    (last_slot, last_hash).into(),
-                ).to_bytes()).await;
+                channel
+                    .expect(
+                        &Message::RequestRange(
+                            (first_slot, first_hash).into(),
+                            (last_slot, last_hash).into(),
+                        )
+                        .to_bytes(),
+                    )
+                    .await;
                 channel.send(&Message::NoBlocks.to_bytes()).await.unwrap();
             },
         );

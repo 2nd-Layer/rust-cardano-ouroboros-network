@@ -59,6 +59,9 @@ impl TryFrom<(u64, &str)> for Point {
 impl From<(u64, &[u8])> for Point {
     fn from(pair: (u64, &[u8])) -> Point {
         let (slot, hash) = pair;
-        Point { slot, hash: hash.to_vec() }
+        Point {
+            slot,
+            hash: hash.to_vec(),
+        }
     }
 }

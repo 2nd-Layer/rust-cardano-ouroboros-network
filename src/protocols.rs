@@ -17,18 +17,25 @@ pub mod handshake;
 pub mod txsubmission;
 
 use crate::{
-    Error,
+    model::{
+        BlockHeader,
+        Point,
+        Tip,
+    },
     mux::Channel,
-    model::{Point, Tip, BlockHeader},
+    Error,
+};
+use async_trait::async_trait;
+use blake2b_simd::Params;
+use log::{
+    debug,
+    trace,
 };
 use serde_cbor::{
     de::Deserializer,
     to_vec,
     Value,
 };
-use log::{trace, debug};
-use blake2b_simd::Params;
-use async_trait::async_trait;
 use std::collections::BTreeMap;
 
 #[async_trait]
@@ -113,24 +120,31 @@ pub(crate) trait Protocol<'a> {
                 let mut bytes = std::mem::replace(&mut self.channel().bytes, Vec::new());
                 let new_data = self.channel().recv().await?;
                 bytes.extend(new_data);
-                self.channel().bytes = self
-                    .receive_bytes(bytes)
-                    .unwrap_or(Box::new([]))
-                    .into_vec();
+                self.channel().bytes = self.receive_bytes(bytes).unwrap_or(Box::new([])).into_vec();
                 if !self.channel().bytes.is_empty() {
-                    trace!("Keeping {} bytes for the next frame.", self.channel().bytes.len());
+                    trace!(
+                        "Keeping {} bytes for the next frame.",
+                        self.channel().bytes.len()
+                    );
                 }
             }
         }
         Ok(())
     }
 
-    fn channel<'b>(&'b mut self) -> &mut Channel<'a> where 'a: 'b;
+    fn channel<'b>(&'b mut self) -> &mut Channel<'a>
+    where
+        'a: 'b;
 }
 
 pub(crate) trait Message: std::fmt::Debug + Sized {
-    fn from_values(array: Vec<Value>) -> Result<Self, Error> { let _ = array; panic!() }
-    fn from_iter(array: Values) -> Result<Self, Error> { Self::from_values(array.to_vec()) }
+    fn from_values(array: Vec<Value>) -> Result<Self, Error> {
+        let _ = array;
+        panic!()
+    }
+    fn from_iter(array: Values) -> Result<Self, Error> {
+        Self::from_values(array.to_vec())
+    }
     fn to_values(&self) -> Vec<Value>;
 
     fn to_bytes(&self) -> Vec<u8> {
@@ -178,7 +192,6 @@ impl<'a> Values<'a> {
             other => Err(format!("Integer required: {:?}", other)),
         }
     }
-
 
     pub(crate) fn integer(&mut self) -> Result<i128, Error> {
         match self.0.next() {
@@ -342,31 +355,29 @@ impl TryFrom<BlockHeader> for WrappedBlockHeader {
     type Error = Error;
 
     fn try_from(header: BlockHeader) -> Result<Self, Self::Error> {
-        let value = Value::Array(vec![
+        let value = Value::Array(vec![Value::Array(vec![
+            Value::Integer(header.block_number.into()),
+            Value::Integer(header.slot_number.into()),
+            Value::Bytes(header.prev_hash),
+            Value::Bytes(header.node_vkey),
+            Value::Bytes(header.node_vrf_vkey),
             Value::Array(vec![
-                Value::Integer(header.block_number.into()),
-                Value::Integer(header.slot_number.into()),
-                Value::Bytes(header.prev_hash),
-                Value::Bytes(header.node_vkey),
-                Value::Bytes(header.node_vrf_vkey),
-                Value::Array(vec![
-                    Value::Bytes(header.eta_vrf_0),
-                    Value::Bytes(header.eta_vrf_1),
-                ]),
-                Value::Array(vec![
-                    Value::Bytes(header.leader_vrf_0),
-                    Value::Bytes(header.leader_vrf_1),
-                ]),
-                Value::Integer(header.block_size.into()),
-                Value::Bytes(header.block_body_hash),
-                Value::Bytes(header.pool_opcert),
-                Value::Integer(header.unknown_0.into()),
-                Value::Integer(header.unknown_1.into()),
-                Value::Bytes(header.unknown_2),
-                Value::Integer(header.protocol_major_version.into()),
-                Value::Integer(header.protocol_minor_version.into()),
+                Value::Bytes(header.eta_vrf_0),
+                Value::Bytes(header.eta_vrf_1),
             ]),
-        ]);
+            Value::Array(vec![
+                Value::Bytes(header.leader_vrf_0),
+                Value::Bytes(header.leader_vrf_1),
+            ]),
+            Value::Integer(header.block_size.into()),
+            Value::Bytes(header.block_body_hash),
+            Value::Bytes(header.pool_opcert),
+            Value::Integer(header.unknown_0.into()),
+            Value::Integer(header.unknown_1.into()),
+            Value::Bytes(header.unknown_2),
+            Value::Integer(header.protocol_major_version.into()),
+            Value::Integer(header.protocol_minor_version.into()),
+        ])]);
         let bytes = to_vec(&value).map_err(|e| format!("{:?}", e))?.to_vec();
         Ok(WrappedBlockHeader { bytes })
     }
@@ -428,9 +439,6 @@ mod test {
         header.hash = wrapped.hash();
         let wrapped: WrappedBlockHeader = header.clone().try_into().unwrap();
         assert_eq!(header.hash, wrapped.hash());
-        assert_eq!(
-            header,
-            wrapped.try_into().unwrap(),
-        );
+        assert_eq!(header, wrapped.try_into().unwrap(),);
     }
 }

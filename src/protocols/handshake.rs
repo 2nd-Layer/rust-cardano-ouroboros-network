@@ -13,11 +13,14 @@
 
 use crate::protocols::Message as MessageOps;
 use crate::{
-    Error,
-    mux::{Connection, Channel},
+    mux::{
+        Channel,
+        Connection,
+    },
     protocols::Agency,
     protocols::Protocol,
     protocols::Values,
+    Error,
 };
 use log::{
     debug,
@@ -47,12 +50,13 @@ impl MessageOps for Message {
     fn from_iter(mut array: Values) -> Result<Self, Error> {
         match array.integer()? {
             0 => {
-                let versions: Vec<(_, _)> = array.map()?
+                let versions: Vec<(_, _)> = array
+                    .map()?
                     .iter()
                     .map(|(key, value)| Version::from_values(key.clone(), value.clone()))
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(Message::ProposeVersions(versions))
-            },
+            }
             1 => {
                 let version = Version::from_u16(array.integer()? as u16);
                 let mut items = array.array()?;
@@ -61,7 +65,7 @@ impl MessageOps for Message {
                 // TODO: Handle this value.
                 assert_eq!(_false, false);
                 Ok(Message::AcceptVersion(version, magic))
-            },
+            }
             2 => {
                 let reason = array.array()?;
                 error!("Handshake refused with reason: {:?}", reason);
@@ -225,7 +229,11 @@ impl HandshakeBuilder {
         self
     }
 
-    fn build<'a>(&self, connection: &'a mut Connection, role: Agency) -> Result<Handshake<'a>, Error> {
+    fn build<'a>(
+        &self,
+        connection: &'a mut Connection,
+        role: Agency,
+    ) -> Result<Handshake<'a>, Error> {
         Ok(Handshake {
             channel: connection.channel(match role {
                 Agency::Client => 0x0000,
@@ -303,7 +311,10 @@ impl<'a> Protocol<'a> for Handshake<'a> {
             State::Propose => {
                 self.state = State::Confirm;
                 Ok(Message::ProposeVersions(
-                    self.versions.iter().map(|v| (v.clone(), self.network_magic)).collect(),
+                    self.versions
+                        .iter()
+                        .map(|v| (v.clone(), self.network_magic))
+                        .collect(),
                 ))
             }
             State::Confirm => {
@@ -348,7 +359,7 @@ impl<'a> Protocol<'a> for Handshake<'a> {
 
     fn channel<'b>(&'b mut self) -> &mut Channel<'a>
     where
-        'a: 'b
+        'a: 'b,
     {
         &mut self.channel
     }
@@ -387,16 +398,9 @@ mod tests {
     #[test]
     fn message_cbor_works() {
         let messages = [
-            Message::ProposeVersions(
-                (1..7).map(|n| (Version::N2N(n), 0x12345678)).collect(),
-            ),
-            Message::ProposeVersions(
-                (1..9).map(|n| (Version::C2N(n), 0x12345678)).collect(),
-            ),
-            Message::AcceptVersion(
-                Version::N2N(7),
-                0x87564321,
-            ),
+            Message::ProposeVersions((1..7).map(|n| (Version::N2N(n), 0x12345678)).collect()),
+            Message::ProposeVersions((1..9).map(|n| (Version::C2N(n), 0x12345678)).collect()),
+            Message::AcceptVersion(Version::N2N(7), 0x87564321),
         ];
         for message in messages {
             assert_eq!(

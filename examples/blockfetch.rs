@@ -9,7 +9,10 @@
 
 use cardano_ouroboros_network::{
     mux::Connection,
-    protocols::{handshake, blockfetch},
+    protocols::{
+        blockfetch,
+        handshake,
+    },
 };
 
 mod common;
