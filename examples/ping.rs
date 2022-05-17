@@ -9,7 +9,7 @@
 
 use cardano_ouroboros_network::{
     mux::Connection,
-    protocols::handshake::Handshake,
+    protocols::handshake,
 };
 use futures::future::join_all;
 use log::{
@@ -30,12 +30,11 @@ async fn ping(host: &String, magic: u32) -> Result<(Duration, Duration), String>
         Err(_) => return Err("Could not connect.".to_string()),
     };
     let connect_duration = connection.duration();
-    Handshake::builder()
-        .client()
+    handshake::builder()
         .node_to_node()
         .network_magic(magic)
-        .build()?
-        .run(&mut connection)
+        .client(&mut connection)?
+        .negotiate()
         .await?;
     let total_duration = connection.duration();
     Ok((connect_duration, total_duration))

@@ -11,12 +11,16 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 
-use crate::mux::Connection;
-use crate::Message as MessageOps;
+use crate::protocols::Message as MessageOps;
 use crate::{
-    Agency,
+    mux::{
+        Channel,
+        Connection,
+    },
+    protocols::Agency,
+    protocols::Protocol,
+    protocols::Values,
     Error,
-    Protocol,
 };
 use log::{
     debug,
@@ -35,67 +39,36 @@ pub enum State {
     Done,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Message {
-    ProposeVersions(Vec<Version>, u32),
+    ProposeVersions(Vec<(Version, u32)>),
     AcceptVersion(Version, u32),
     Refuse,
 }
 
 impl MessageOps for Message {
-    fn from_values(values: Vec<Value>) -> Result<Self, Error> {
-        let mut values = values.into_iter();
-        match values.next().ok_or("Message ID required.")? {
-            Value::Integer(0) => match values.next() {
-                Some(Value::Map(map)) => {
-                    let items: Vec<(_, _)> = map
-                        .iter()
-                        .map(|(key, value)| Version::from_values(key.clone(), value.clone()))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let magic = *match items.first().map(|(_, value)| value) {
-                        Some(magic) => {
-                            items
-                                .iter()
-                                .all(|(_, value)| value == magic)
-                                .then(|| ())
-                                .ok_or("Different magics not supported.")?;
-                            magic
-                        }
-                        None => return Err("At least one version required.".to_string()),
-                    };
-                    let versions = items.into_iter().map(|(key, _)| key).collect();
-                    Ok(Message::ProposeVersions(versions, magic))
-                }
-                _ => Err("Map of supported versions required.".to_string()),
-            },
-            Value::Integer(1) => {
-                let version = match values.next() {
-                    Some(Value::Integer(version)) => {
-                        Version::from_u16(u16::try_from(version).map_err(|e| e.to_string())?)
-                    }
-                    _ => return Err("Integer version number required.".to_string()),
-                };
-                match values.next() {
-                    Some(Value::Array(array)) => {
-                        let mut items = array.iter();
-                        let magic = match items.next() {
-                            Some(Value::Integer(magic)) => {
-                                u32::try_from(*magic).map_err(|e| e.to_string())?
-                            }
-                            _ => return Err("Integer version number required.".to_string()),
-                        };
-                        Ok(Message::AcceptVersion(version, magic))
-                    }
-                    _ => return Err("Array of extra parameters required.".to_string()),
-                }
+    fn from_iter(mut array: Values) -> Result<Self, Error> {
+        match array.integer()? {
+            0 => {
+                let versions: Vec<(_, _)> = array
+                    .map()?
+                    .iter()
+                    .map(|(key, value)| Version::from_values(key.clone(), value.clone()))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(Message::ProposeVersions(versions))
             }
-            Value::Integer(2) => {
-                match values.next() {
-                    Some(Value::Array(reason)) => {
-                        error!("Handshake refused with reason: {:?}", reason);
-                    }
-                    _ => return Err("Refuse reason required.".to_string()),
-                };
+            1 => {
+                let version = Version::from_u16(array.integer()? as u16);
+                let mut items = array.array()?;
+                let magic = items.integer()? as u32;
+                let _false = items.bool()?;
+                // TODO: Handle this value.
+                assert_eq!(_false, false);
+                Ok(Message::AcceptVersion(version, magic))
+            }
+            2 => {
+                let reason = array.array()?;
+                error!("Handshake refused with reason: {:?}", reason);
                 Ok(Message::Refuse)
             }
             _ => return Err("Unexpected.".to_string()),
@@ -104,12 +77,12 @@ impl MessageOps for Message {
 
     fn to_values(&self) -> Vec<Value> {
         match self {
-            Message::ProposeVersions(versions, magic) => vec![
+            Message::ProposeVersions(versions) => vec![
                 Integer(0),
                 Value::Map(
                     versions
                         .iter()
-                        .map(|v| v.to_values(*magic).unwrap())
+                        .map(|(v, m)| v.to_values(*m).unwrap())
                         .collect(),
                 ),
             ],
@@ -129,14 +102,9 @@ impl MessageOps for Message {
             ],
         }
     }
-
-    fn info(&self) -> String {
-        format!("{:?}", self)
-    }
 }
 
 pub struct HandshakeBuilder {
-    role: Agency,
     versions: Vec<Version>,
     magic: u32,
 }
@@ -165,7 +133,6 @@ pub enum Version {
 
 impl Version {
     fn to_values(&self, magic: u32) -> Result<(Value, Value), Error> {
-        debug!("VERSION {:?}", self);
         match self {
             &Version::N2N(v) => match v {
                 1..=3 => Ok((Value::Integer(v), Value::Integer(magic.into()))),
@@ -239,19 +206,16 @@ impl Version {
     }
 }
 
+pub fn builder() -> HandshakeBuilder {
+    HandshakeBuilder {
+        versions: vec![Version::N2N(6), Version::N2N(7)],
+        magic: 0,
+    }
+}
+
 impl HandshakeBuilder {
     pub fn network_magic(&mut self, magic: u32) -> &mut Self {
         self.magic = magic;
-        self
-    }
-
-    pub fn client(&mut self) -> &mut Self {
-        self.role = Agency::Client;
-        self
-    }
-
-    pub fn server(&mut self) -> &mut Self {
-        self.role = Agency::Server;
         self
     }
 
@@ -265,18 +229,36 @@ impl HandshakeBuilder {
         self
     }
 
-    pub fn build(&mut self) -> Result<Handshake, Error> {
+    fn build<'a>(
+        &self,
+        connection: &'a mut Connection,
+        role: Agency,
+    ) -> Result<Handshake<'a>, Error> {
         Ok(Handshake {
-            role: self.role,
+            channel: connection.channel(match role {
+                Agency::Client => 0x0000,
+                Agency::Server => 0x8000,
+                _ => panic!(),
+            }),
+            role,
             versions: self.versions.clone(),
             network_magic: self.magic,
             state: State::Propose,
             version: None,
         })
     }
+
+    pub fn client<'a>(&self, connection: &'a mut Connection) -> Result<Handshake<'a>, Error> {
+        self.build(connection, Agency::Client)
+    }
+
+    pub fn server<'a>(&self, connection: &'a mut Connection) -> Result<Handshake<'a>, Error> {
+        self.build(connection, Agency::Server)
+    }
 }
 
-pub struct Handshake {
+pub struct Handshake<'a> {
+    channel: Channel<'a>,
     role: Agency,
     versions: Vec<Version>,
     network_magic: u32,
@@ -284,17 +266,9 @@ pub struct Handshake {
     version: Option<Version>,
 }
 
-impl Handshake {
-    pub fn builder() -> HandshakeBuilder {
-        HandshakeBuilder {
-            role: Agency::Client,
-            versions: vec![Version::N2N(6), Version::N2N(7)],
-            magic: 0,
-        }
-    }
-
-    pub async fn run(&mut self, connection: &mut Connection) -> Result<(Version, u32), Error> {
-        connection.channel(self.protocol_id()).execute(self).await?;
+impl Handshake<'_> {
+    pub async fn negotiate(&mut self) -> Result<(Version, u32), Error> {
+        self.execute().await?;
         self.version
             .as_ref()
             .map(|v| (v.clone(), self.network_magic))
@@ -302,7 +276,7 @@ impl Handshake {
     }
 }
 
-impl Protocol for Handshake {
+impl<'a> Protocol<'a> for Handshake<'a> {
     type State = State;
     type Message = Message;
 
@@ -337,8 +311,10 @@ impl Protocol for Handshake {
             State::Propose => {
                 self.state = State::Confirm;
                 Ok(Message::ProposeVersions(
-                    self.versions.clone(),
-                    self.network_magic,
+                    self.versions
+                        .iter()
+                        .map(|v| (v.clone(), self.network_magic))
+                        .collect(),
                 ))
             }
             State::Confirm => {
@@ -380,6 +356,13 @@ impl Protocol for Handshake {
         }
         Ok(())
     }
+
+    fn channel<'b>(&'b mut self) -> &mut Channel<'a>
+    where
+        'a: 'b,
+    {
+        &mut self.channel
+    }
 }
 
 #[cfg(test)]
@@ -413,42 +396,72 @@ mod tests {
     }
 
     #[test]
-    fn handshake_client_works() {
-        let magic = 0xdddddddd;
-        let mut client = Handshake::builder()
-            .client()
-            .node_to_node()
-            .network_magic(magic)
-            .build()
-            .unwrap();
-        assert_eq!(client.state, State::Propose);
-        let data = client.send_bytes().unwrap();
-        assert_eq!(client.state, State::Confirm);
-        assert_eq!(data, propose(magic));
-        client.receive_bytes(confirm(magic));
-        assert_eq!(client.state, State::Done);
-        assert_eq!(client.version, Some(Version::N2N(7)));
-        assert_eq!(client.network_magic, 0xdddddddd);
+    fn message_cbor_works() {
+        let messages = [
+            Message::ProposeVersions((1..7).map(|n| (Version::N2N(n), 0x12345678)).collect()),
+            Message::ProposeVersions((1..9).map(|n| (Version::C2N(n), 0x12345678)).collect()),
+            Message::AcceptVersion(Version::N2N(7), 0x87564321),
+        ];
+        for message in messages {
+            assert_eq!(
+                Message::from_iter(Values::from_vec(&message.to_values())),
+                Ok(message),
+            );
+        }
     }
 
-    #[test]
-    fn handshake_server_works() {
-        env_logger::init();
+    #[tokio::test]
+    async fn handshake_client_works() {
+        env_logger::builder().is_test(true).try_init().ok();
+        let (mut connection, mut endpoint) = Connection::test_unix_pair().unwrap();
+        let mut channel = endpoint.channel(0x8000);
+
         let magic = 0xdddddddd;
-        let mut server = Handshake::builder()
-            .server()
-            .node_to_node()
-            .network_magic(magic)
-            .build()
-            .unwrap();
-        assert_eq!(server.state, State::Propose);
-        server.receive_bytes(propose(magic));
-        assert_eq!(server.state, State::Confirm);
-        let data = server.send_bytes().unwrap();
-        assert_eq!(server.state, State::Done);
-        assert_eq!(data, confirm(magic));
-        assert_eq!(server.state, State::Done);
-        assert_eq!(server.version, Some(Version::N2N(7)));
-        assert_eq!(server.network_magic, 0xdddddddd);
+        tokio::join!(
+            async {
+                debug!("................");
+                let mut client = builder()
+                    .node_to_node()
+                    .network_magic(magic)
+                    .client(&mut connection)
+                    .unwrap();
+                assert_eq!(client.state, State::Propose);
+                let result = client.negotiate().await.unwrap();
+                assert_eq!(client.state, State::Done);
+                assert_eq!(result, (Version::N2N(7), 0xdddddddd));
+            },
+            async {
+                let request = channel.recv().await.unwrap();
+                assert_eq!(request, propose(magic));
+                channel.send(&confirm(magic)).await.unwrap();
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn handshake_server_works() {
+        env_logger::builder().is_test(true).try_init().ok();
+        let (mut connection, mut endpoint) = Connection::test_unix_pair().unwrap();
+        let mut channel = endpoint.channel(0x0000);
+
+        let magic = 0xdddddddd;
+        tokio::join!(
+            async {
+                let mut server = builder()
+                    .node_to_node()
+                    .network_magic(magic)
+                    .server(&mut connection)
+                    .unwrap();
+                assert_eq!(server.state, State::Propose);
+                let result = server.negotiate().await.unwrap();
+                assert_eq!(server.state, State::Done);
+                assert_eq!(result, (Version::N2N(7), magic));
+            },
+            async {
+                channel.send(&propose(magic)).await.unwrap();
+                let response = channel.recv().await.unwrap();
+                assert_eq!(response, confirm(magic));
+            },
+        );
     }
 }

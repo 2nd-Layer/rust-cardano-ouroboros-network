@@ -7,14 +7,11 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 
-use crate::{
-    Agency,
-    Protocol,
-};
 use byteorder::{
     ByteOrder,
     NetworkEndian,
 };
+use log::error;
 use log::trace;
 use std::{
     collections::HashMap,
@@ -28,7 +25,6 @@ use std::{
         Instant,
     },
 };
-use tokio;
 use tokio::{
     io::{
         AsyncRead,
@@ -123,6 +119,16 @@ impl Connection {
         self.start_time.elapsed()
     }
 
+    #[cfg(test)]
+    #[cfg(target_family = "unix")]
+    pub fn test_unix_pair() -> Result<(Connection, Connection), io::Error> {
+        let (left, right) = UnixStream::pair()?;
+        Ok((
+            Connection::from_unix_stream(left),
+            Connection::from_unix_stream(right),
+        ))
+    }
+
     pub fn channel<'a>(&'a mut self, idx: u16) -> Channel<'a> {
         let receiver = self.register(idx);
         let demux = self.run_demux();
@@ -136,13 +142,13 @@ impl Connection {
     }
 
     fn register(&mut self, idx: u16) -> Receiver<Payload> {
-        trace!("Registering channel {}.", idx);
+        trace!("Registering channel 0x{:04x}.", idx);
         let (tx, rx) = mpsc::unbounded_channel();
         self.channels.lock().unwrap().insert(idx, tx);
         rx
     }
     fn unregister(&mut self, idx: u16) {
-        trace!("Unregistering channel {}.", idx);
+        trace!("Unregistering channel 0x{:04x}.", idx);
         self.channels.lock().unwrap().remove(&idx);
     }
     async fn send(&self, idx: u16, payload: &[u8]) {
@@ -178,7 +184,10 @@ impl Connection {
                         //trace!("Reading payload, idx={} length={}.", idx, length);
                         let mut payload = vec![0u8; length];
                         receiver.read_exact(&mut payload).await.unwrap();
-                        channels.lock().unwrap()[&idx].send(payload).unwrap();
+                        match channels.lock().unwrap().get(&idx) {
+                            Some(channel) => channel.send(payload).unwrap(),
+                            None => error!("Channel 0x{:04x} not attached.", idx),
+                        }
                     }
                 })));
                 *demux_lock = Arc::downgrade(&demux);
@@ -197,41 +206,21 @@ pub struct Channel<'a> {
 }
 
 impl<'a> Channel<'a> {
-    pub(crate) async fn execute<P>(&mut self, protocol: &mut P) -> Result<(), Error>
-    where
-        P: Protocol,
-    {
-        trace!("Executing protocol {}.", self.idx);
-        loop {
-            let agency = protocol.agency();
-            if agency == Agency::None {
-                break;
-            }
-            let role = protocol.role();
-            if agency == role {
-                self.send(&protocol.send_bytes().unwrap()).await?;
-            } else {
-                let mut bytes = std::mem::replace(&mut self.bytes, Vec::new());
-                let new_data = self.recv().await?;
-                bytes.extend(new_data);
-                self.bytes = protocol
-                    .receive_bytes(bytes)
-                    .unwrap_or(Box::new([]))
-                    .into_vec();
-                if !self.bytes.is_empty() {
-                    trace!("Keeping {} bytes for the next frame.", self.bytes.len());
-                }
-            }
-        }
-        Ok(())
+    pub(crate) fn get_index(&self) -> u16 {
+        self.idx
     }
 
-    async fn send(&mut self, data: &[u8]) -> Result<(), Error> {
+    pub(crate) async fn send(&mut self, data: &[u8]) -> Result<(), Error> {
         Ok(self.connection.send(self.idx, &data).await)
     }
 
-    async fn recv(&mut self) -> Result<Vec<u8>, Error> {
+    pub(crate) async fn recv(&mut self) -> Result<Vec<u8>, Error> {
         Ok(self.connection.recv(&mut self.receiver).await)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn expect(&mut self, data: &[u8]) {
+        assert_eq!(self.recv().await.unwrap(), data,);
     }
 }
 

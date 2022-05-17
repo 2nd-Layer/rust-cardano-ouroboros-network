@@ -11,11 +11,15 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 
-use crate::Message as MessageOps;
+use crate::protocols::Message as MessageOps;
 use crate::{
-    Agency,
+    mux::{
+        Channel,
+        Connection,
+    },
+    protocols::Agency,
+    protocols::Protocol,
     Error,
-    Protocol,
 };
 use byteorder::WriteBytesExt;
 use log::{
@@ -64,23 +68,21 @@ impl MessageOps for Message {
             }
         }
     }
+}
 
-    fn info(&self) -> String {
-        format!("{:?}", self)
+pub struct TxSubmission<'a> {
+    channel: Channel<'a>,
+    state: State,
+}
+
+impl<'a> TxSubmission<'a> {
+    pub fn new(connection: &'a mut Connection) -> Self {
+        TxSubmission {
+            channel: connection.channel(0x0004),
+            state: State::Idle,
+        }
     }
-}
 
-pub struct TxSubmission {
-    pub(crate) state: State,
-}
-
-impl Default for TxSubmission {
-    fn default() -> Self {
-        TxSubmission { state: State::Idle }
-    }
-}
-
-impl TxSubmission {
     fn msg_reply_tx_ids(&self) -> Message {
         // We need to do manual cbor encoding to do the empty indefinite array for txs.
         // We always just tell the server we have no transactions to send it.
@@ -93,7 +95,7 @@ impl TxSubmission {
     }
 }
 
-impl Protocol for TxSubmission {
+impl<'a> Protocol<'a> for TxSubmission<'a> {
     type State = State;
     type Message = Message;
 
@@ -169,5 +171,12 @@ impl Protocol for TxSubmission {
             _ => panic!(),
         }
         Ok(())
+    }
+
+    fn channel<'b>(&'b mut self) -> &mut Channel<'a>
+    where
+        'a: 'b,
+    {
+        &mut self.channel
     }
 }

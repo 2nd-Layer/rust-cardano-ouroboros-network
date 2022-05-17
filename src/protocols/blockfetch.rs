@@ -8,17 +8,16 @@
 //
 
 use crate::mux::Channel;
-#[cfg(not(test))]
 use crate::mux::Connection;
-use crate::Message as MessageOps;
+use crate::protocols::Message as MessageOps;
 use crate::{
-    Agency,
+    model::Point,
+    protocols::Agency,
+    protocols::Protocol,
+    protocols::Values,
     Error,
-    Protocol,
 };
 use serde_cbor::Value;
-
-type Point = (u64, Vec<u8>);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum State {
@@ -39,45 +38,32 @@ pub enum Message {
 }
 
 impl MessageOps for Message {
-    fn from_values(array: Vec<Value>) -> Result<Self, Error> {
-        let mut values = array.iter();
-        //debug!("Parsing message: {:?}", values);
-        let message = match values
-            .next()
-            .ok_or("Unexpected end of message.".to_string())?
-        {
-            //Value::Integer(0) => Message::RequestRange(),
-            Value::Integer(1) => Message::ClientDone,
-            Value::Integer(2) => Message::StartBatch,
-            Value::Integer(3) => Message::NoBlocks,
-            Value::Integer(4) => {
-                match values
-                    .next()
-                    .ok_or("Unexpected End of message.".to_string())?
-                {
-                    Value::Bytes(bytes) => Message::Block(bytes.to_vec()),
-                    _ => panic!("Extra data: {:?}", values.collect::<Vec<_>>()),
-                }
-            }
-            Value::Integer(5) => Message::BatchDone,
+    fn from_iter(mut array: Values) -> Result<Self, Error> {
+        let message = match array.integer()? {
+            0 => Message::RequestRange(array.array()?.try_into()?, array.array()?.try_into()?),
+            1 => Message::ClientDone,
+            2 => Message::StartBatch,
+            3 => Message::NoBlocks,
+            4 => Message::Block(array.bytes()?.to_vec()),
+            5 => Message::BatchDone,
             _ => panic!(),
         };
-        match values.next() {
-            Some(Value::Null) => Ok(message),
-            Some(data) => Err(format!("data={:?}", data)),
-            None => Ok(message),
-        }
+        array.end()?;
+        Ok(message)
     }
 
     fn to_values(&self) -> Vec<Value> {
         match self {
             Message::RequestRange(first, last) => vec![
                 Value::Integer(0),
-                vec![Value::Integer(first.0.into()), first.1.clone().into()].into(),
-                vec![Value::Integer(last.0.into()), last.1.clone().into()].into(),
-            ]
-            .into(),
-            _ => panic!(),
+                vec![Value::Integer(first.slot.into()), first.hash.clone().into()].into(),
+                vec![Value::Integer(last.slot.into()), last.hash.clone().into()].into(),
+            ],
+            Message::ClientDone => vec![Value::Integer(1)],
+            Message::StartBatch => vec![Value::Integer(2)],
+            Message::NoBlocks => vec![Value::Integer(3)],
+            Message::Block(block) => vec![Value::Integer(4), Value::Bytes(block.clone())],
+            Message::BatchDone => vec![Value::Integer(5)],
         }
     }
 
@@ -89,6 +75,10 @@ impl MessageOps for Message {
     }
 }
 
+pub fn builder() -> Builder {
+    Default::default()
+}
+
 #[derive(Default)]
 pub struct Builder {
     first: Option<Point>,
@@ -97,22 +87,16 @@ pub struct Builder {
 
 impl Builder {
     pub fn first(&mut self, slot: u64, hash: Vec<u8>) -> &mut Self {
-        self.first = Some((slot, hash));
+        self.first = Some((slot, hash.as_slice()).into());
         self
     }
     pub fn last(&mut self, slot: u64, hash: Vec<u8>) -> &mut Self {
-        self.last = Some((slot, hash));
+        self.last = Some((slot, hash.as_slice()).into());
         self
     }
-    pub fn build<'a>(
-        &mut self,
-        #[cfg(not(test))] connection: &'a mut Connection,
-    ) -> Result<BlockFetch<'a>, Error> {
+    pub fn client<'a>(&mut self, connection: &'a mut Connection) -> Result<BlockFetch<'a>, Error> {
         Ok(BlockFetch {
-            #[cfg(not(test))]
-            channel: Some(connection.channel(0x0003)),
-            #[cfg(test)]
-            channel: None,
+            channel: connection.channel(0x0003),
             config: Config {
                 first: self.first.as_ref().ok_or("First point required.")?.clone(),
                 last: self.last.as_ref().ok_or("Last point required.")?.clone(),
@@ -131,7 +115,7 @@ pub struct Config {
 }
 
 pub struct BlockFetch<'a> {
-    channel: Option<Channel<'a>>,
+    channel: Channel<'a>,
     config: Config,
     state: State,
     result: Vec<Box<[u8]>>,
@@ -140,24 +124,20 @@ pub struct BlockFetch<'a> {
 }
 
 impl<'a> BlockFetch<'a> {
-    pub fn builder() -> Builder {
-        Default::default()
-    }
-
     pub async fn run<'b>(&'b mut self) -> Result<BlockStream<'a, 'b>, Error>
     where
         'a: 'b,
     {
-        // Start the protocol and prefetch first block into `self.result`.
-        //self.running = true;
-        // TODO: Do something with the Option trick.
-        let mut channel = self
-            .channel
-            .take()
-            .ok_or("Channel not available.".to_string())?;
-        channel.execute(self).await?;
-        self.channel = Some(channel);
+        self.running = true;
+        self.execute().await?;
         Ok(BlockStream { blockfetch: self })
+    }
+
+    pub async fn done(mut self) -> Result<(), Error> {
+        self.running = true;
+        self.done = true;
+        self.execute().await?;
+        Ok(())
     }
 }
 
@@ -171,7 +151,7 @@ impl BlockStream<'_, '_> {
             match self.blockfetch.state() {
                 State::Streaming => {
                     self.blockfetch.running = true;
-                    //self.blockfetch.channel.execute(self.blockfetch).await?
+                    self.blockfetch.execute().await?;
                 }
                 State::Idle => return Ok(None),
                 _ => panic!("Unexpected state."),
@@ -185,7 +165,7 @@ impl BlockStream<'_, '_> {
     }
 }
 
-impl Protocol for BlockFetch<'_> {
+impl<'a> Protocol<'a> for BlockFetch<'a> {
     type State = State;
     type Message = Message;
 
@@ -239,7 +219,10 @@ impl Protocol for BlockFetch<'_> {
     fn recv(&mut self, message: Message) -> Result<(), Error> {
         // `self.running` may be false in case of pipelining.
         Ok(self.state = match (self.state, message) {
-            (State::Busy, Message::NoBlocks) => State::Idle,
+            (State::Busy, Message::NoBlocks) => {
+                self.running = false;
+                State::Idle
+            }
             (State::Busy, Message::StartBatch) => State::Streaming,
             (State::Streaming, Message::Block(bytes)) => {
                 self.running = false;
@@ -253,99 +236,121 @@ impl Protocol for BlockFetch<'_> {
             (state, message) => panic!("Unexpected message {:?} in state {:?}.", message, state),
         })
     }
+
+    fn channel<'b>(&'b mut self) -> &mut Channel<'a>
+    where
+        'a: 'b,
+    {
+        &mut self.channel
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mux::Connection;
+
+    static MOCK_DATA: &'static [(u64, &[u8], &[u8])] = &[
+        (42, b"mock-hash-1", b"mock-block-1"),
+        (43, b"mock-hash-2", b"mock-block-2"),
+        (44, b"mock-hash-3", b"mock-block-3"),
+    ];
 
     #[test]
-    fn client_accepts_blocks() {
-        let mut client = BlockFetch::builder()
-            .first(42, b"fake-hash-1".to_vec())
-            .last(43, b"fake-hash-2".to_vec())
-            .build()
-            .unwrap();
-        assert_eq!(client.state, State::Idle);
-        // Start the exchange.
-        client.running = true;
-        let message = client.send().unwrap();
-        assert!(client.running);
-        assert_eq!(
-            message,
-            Message::RequestRange((42, b"fake-hash-1".to_vec()), (43, b"fake-hash-2".to_vec()),)
-        );
-        assert_eq!(client.state, State::Busy);
-        assert!(client.result.is_empty());
-        client.recv(Message::StartBatch).unwrap();
-        assert!(client.running);
-        assert_eq!(client.state, State::Streaming);
-        assert!(client.result.is_empty());
-        // Accept blocks one by one.
-        for block in [b"fake-block-1", b"fake-block-2", b"fake-block-3"] {
-            client.recv(Message::Block(block.to_vec())).unwrap();
-            assert!(!client.running);
-            assert_eq!(client.state, State::Streaming);
-            assert_eq!(client.result.remove(0), Box::from(block.as_slice()));
-            assert!(client.result.is_empty());
-            client.running = true;
+    fn message_cbor_works() {
+        let &(first_slot, first_hash, first_block) = MOCK_DATA.first().unwrap();
+        let &(last_slot, last_hash, _) = MOCK_DATA.last().unwrap();
+        let messages = [
+            Message::RequestRange(
+                (first_slot, first_hash).into(),
+                (last_slot, last_hash).into(),
+            ),
+            Message::ClientDone,
+            Message::StartBatch,
+            Message::NoBlocks,
+            Message::Block(first_block.to_vec()),
+            Message::BatchDone,
+        ];
+        for message in messages {
+            assert_eq!(
+                Message::from_iter(Values::from_vec(&message.to_values())),
+                Ok(message),
+            );
         }
-        // Accept blocks as bulk.
-        for block in [b"fake-block-1", b"fake-block-2", b"fake-block-3"] {
-            client.recv(Message::Block(block.to_vec())).unwrap();
-            assert!(!client.running);
-            assert_eq!(client.state, State::Streaming);
-            client.running = true;
-        }
-        for block in [b"fake-block-1", b"fake-block-2", b"fake-block-3"] {
-            assert_eq!(client.result.remove(0), Box::from(block.as_slice()));
-        }
-        assert!(client.result.is_empty());
-        // Stop streaming.
-        client.recv(Message::BatchDone).unwrap();
-        assert!(!client.running);
-        assert_eq!(client.state, State::Idle);
-        assert!(client.result.is_empty());
-        // Close the channel.
-        client.running = true;
-        client.done = true;
-        let message = client.send().unwrap();
-        assert!(client.running);
-        assert_eq!(message, Message::ClientDone);
-        assert_eq!(client.state, State::Done);
-        assert!(client.result.is_empty());
     }
 
-    #[test]
-    fn client_accepts_no_blocks() {
-        let mut client = BlockFetch::builder()
-            .first(42, b"fake-hash-1".to_vec())
-            .last(43, b"fake-hash-2".to_vec())
-            .build()
+    #[tokio::test]
+    async fn client_works() {
+        env_logger::builder().is_test(true).try_init().ok();
+        let (mut connection, mut endpoint) = Connection::test_unix_pair().unwrap();
+        let mut channel = endpoint.channel(0x8003);
+
+        let &(first_slot, first_hash, _) = MOCK_DATA.first().unwrap();
+        let &(last_slot, last_hash, _) = MOCK_DATA.last().unwrap();
+        let mut client = builder()
+            .first(first_slot, first_hash.to_vec())
+            .last(last_slot, last_hash.to_vec())
+            .client(&mut connection)
             .unwrap();
         assert_eq!(client.state, State::Idle);
-        // Start the exchange.
-        client.running = true;
-        let message = client.send().unwrap();
-        assert!(client.running);
-        assert_eq!(
-            message,
-            Message::RequestRange((42, b"fake-hash-1".to_vec()), (43, b"fake-hash-2".to_vec()),)
+        // Client collects a range of blocks.
+        tokio::join!(
+            async {
+                let mut blocks = client.run().await.unwrap();
+                for (_, _, block) in MOCK_DATA {
+                    assert_eq!(blocks.next().await, Ok(Some(Box::from(*block))),);
+                }
+                assert_eq!(blocks.next().await, Ok(None),);
+            },
+            async {
+                channel
+                    .expect(
+                        &Message::RequestRange(
+                            (first_slot, first_hash).into(),
+                            (last_slot, last_hash).into(),
+                        )
+                        .to_bytes(),
+                    )
+                    .await;
+                channel.send(&Message::StartBatch.to_bytes()).await.unwrap();
+                for (_, _, block) in MOCK_DATA {
+                    channel
+                        .send(&Message::Block(block.to_vec()).to_bytes())
+                        .await
+                        .unwrap();
+                }
+                channel.send(&Message::BatchDone.to_bytes()).await.unwrap();
+            },
         );
-        assert_eq!(client.state, State::Busy);
-        assert!(client.result.is_empty());
-        client.recv(Message::NoBlocks).unwrap();
-        assert!(client.running);
         assert_eq!(client.state, State::Idle);
-        assert!(client.result.is_empty());
-        assert!(client.result.is_empty());
-        // Close the channel.
-        client.running = true;
-        client.done = true;
-        let message = client.send().unwrap();
-        assert!(client.running);
-        assert_eq!(message, Message::ClientDone);
-        assert_eq!(client.state, State::Done);
-        assert!(client.result.is_empty());
+        // Client understands negative answer.
+        tokio::join!(
+            async {
+                let mut blocks = client.run().await.unwrap();
+                assert_eq!(blocks.next().await, Ok(None),);
+            },
+            async {
+                channel
+                    .expect(
+                        &Message::RequestRange(
+                            (first_slot, first_hash).into(),
+                            (last_slot, last_hash).into(),
+                        )
+                        .to_bytes(),
+                    )
+                    .await;
+                channel.send(&Message::NoBlocks.to_bytes()).await.unwrap();
+            },
+        );
+        assert_eq!(client.state, State::Idle);
+        // Client closes the channel.
+        tokio::join!(
+            async {
+                client.done().await.unwrap();
+            },
+            async {
+                channel.expect(&Message::ClientDone.to_bytes()).await;
+            },
+        );
     }
 }

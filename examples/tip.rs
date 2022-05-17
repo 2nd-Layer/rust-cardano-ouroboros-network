@@ -9,12 +9,10 @@
 
 use cardano_ouroboros_network::{
     mux::Connection,
-    protocols::chainsync::{
-        ChainSync,
-        Intersect,
-        Reply,
+    protocols::{
+        chainsync,
+        handshake,
     },
-    protocols::handshake::Handshake,
 };
 use log::info;
 
@@ -25,32 +23,31 @@ async fn tip() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut connection = Connection::tcp_connect(&cfg.host).await?;
 
-    Handshake::builder()
-        .client()
+    handshake::builder()
         .node_to_node()
         .network_magic(cfg.magic)
-        .build()?
-        .run(&mut connection)
+        .client(&mut connection)?
+        .negotiate()
         .await?;
 
-    let mut chainsync = ChainSync::builder().build(&mut connection);
+    let mut chainsync = chainsync::builder().client(&mut connection);
     let intersect = chainsync
         .find_intersect(vec![cfg.byron_mainnet, cfg.byron_testnet, cfg.byron_guild])
         .await?;
     match intersect {
-        Intersect::Found(point, tip) => info!("= {:?}, {:?}", point, tip),
+        chainsync::Intersect::Found(point, tip) => info!("= {:?}, {:?}", point, tip),
         _ => panic!(),
     };
     loop {
         match chainsync.request_next().await? {
-            Reply::Forward(header, tip) => {
+            chainsync::Reply::Forward(header, tip) => {
                 info!("+ {:?}, {:?}", header, tip);
                 if header.hash == tip.hash {
                     info!("Reached tip!");
                 }
                 chainsync.find_intersect(vec![tip.into()]).await?;
             }
-            Reply::Backward(slot, tip) => info!("- {:?}, {:?}", slot, tip),
+            chainsync::Reply::Backward(slot, tip) => info!("- {:?}, {:?}", slot, tip),
         }
     }
 }
