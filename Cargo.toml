@@ -36,7 +36,7 @@ async-trait = "0.1.52"
 env_logger = "0.9.0"
 futures = "0.3.8"
 oura = "1.1.0"
-pallas = "0.7.0"
+pallas = "0.13.0"
 sled = "0.34.7"
 
 [[example]]
