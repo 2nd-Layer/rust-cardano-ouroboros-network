@@ -33,7 +33,7 @@ tokio = { version = "1.15.0", features = ["full"]}
 async-trait = "0.1.52"
 
 [dev-dependencies]
-env_logger = "0.9.0"
+env_logger = "0.10.0"
 futures = "0.3.8"
 oura = "1.1.0"
 pallas = "0.7.0"
